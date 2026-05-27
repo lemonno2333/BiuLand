@@ -11,15 +11,12 @@ struct LiveActivityLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: context.state.icon)
-                        .font(.system(size: 36, weight: .semibold))
-                        .symbolRenderingMode(.hierarchical)
-                        .foregroundStyle(.white)
+                    activityIcon(context.state.icon, brandIconName: context.state.brandIconName, size: 64)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 5) {
-                        Text("当前取码")
+                        Text(context.state.brandName ?? "当前取码")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text(context.state.code)
@@ -35,16 +32,14 @@ struct LiveActivityLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: context.state.icon)
-                    .font(.system(size: 15, weight: .semibold))
+                compactIcon(context.state.icon, brandIconName: context.state.brandIconName, size: 24)
             } compactTrailing: {
                 Text(context.state.code)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
             } minimal: {
-                Image(systemName: context.state.icon)
-                    .font(.system(size: 13, weight: .semibold))
+                compactIcon(context.state.icon, brandIconName: context.state.brandIconName, size: 20)
             }
         }
     }
@@ -57,7 +52,7 @@ struct LiveActivityLiveActivity: Widget {
     private func activityContent(for state: PickupCodeActivityAttributes.ContentState) -> some View {
         if state.code.count > 4 {
             HStack(spacing: 16) {
-                activityIcon(state.icon)
+                activityIcon(state.icon, brandIconName: state.brandIconName, size: 66)
                     .frame(maxHeight: .infinity, alignment: .center)
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -72,7 +67,7 @@ struct LiveActivityLiveActivity: Widget {
         } else {
             ZStack(alignment: .bottomTrailing) {
                 HStack(spacing: 16) {
-                    activityIcon(state.icon)
+                    activityIcon(state.icon, brandIconName: state.brandIconName, size: 66)
                     codeBlock(for: state, codeSize: 38)
                     Spacer(minLength: 0)
                 }
@@ -82,24 +77,55 @@ struct LiveActivityLiveActivity: Widget {
         }
     }
 
-    private func activityIcon(_ icon: String) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 52, weight: .semibold))
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(.white)
-            .frame(width: 76, alignment: .center)
-            .minimumScaleFactor(0.7)
+    @ViewBuilder
+    private func activityIcon(_ icon: String, brandIconName: String?, size: CGFloat) -> some View {
+        if let brandIconName {
+            Image(brandIconName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+                .frame(width: 84, alignment: .center)
+        } else {
+            Image(systemName: icon)
+                .font(.system(size: size, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(.white)
+                .frame(width: 76, alignment: .center)
+                .minimumScaleFactor(0.7)
+        }
+    }
+
+    @ViewBuilder
+    private func compactIcon(_ icon: String, brandIconName: String?, size: CGFloat) -> some View {
+        if let brandIconName {
+            Image(brandIconName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            Image(systemName: icon)
+                .font(.system(size: size, weight: .semibold))
+        }
     }
 
     private func codeBlock(for state: PickupCodeActivityAttributes.ContentState, codeSize: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("当前取码")
+            Text(state.brandName ?? "当前取码")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Text(state.code)
                 .font(.system(size: codeSize, weight: .heavy, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.38)
+            if state.context.isEmpty == false {
+                Text(state.context)
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

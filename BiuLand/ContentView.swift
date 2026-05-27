@@ -8,7 +8,9 @@ struct ContentView: View {
     @State private var resultText = "请选择一张截图，或通过快捷指令触发识别。"
     @State private var parsedCode = "-"
     @State private var currentIcon = "fork.knife"
+    @State private var currentBrandIconName: String?
     @State private var currentReason = "等待识别"
+    @State private var currentBrandName: String?
     @State private var historyItems = PickupCodeHistoryStore.load()
     @State private var recognizedLines: [RecognizedTextLine] = []
     @State private var debugReport: CodeExtractionDebugReport?
@@ -29,6 +31,8 @@ struct ContentView: View {
                         historyView
 
                         debugView
+
+                        creditsView
                     }
                     .padding(20)
                 }
@@ -81,7 +85,9 @@ struct ContentView: View {
                     resultText = preview.isEmpty ? "未识别到文字。" : "未识别到有效取码。OCR：\(preview)"
                     parsedCode = "-"
                     currentIcon = "fork.knife"
+                    currentBrandIconName = nil
                     currentReason = "未识别"
+                    currentBrandName = nil
                     recognizedLines = lines
                     debugReport = report
                 }
@@ -92,12 +98,18 @@ struct ContentView: View {
                 code: candidate.code,
                 context: candidate.reason,
                 icon: candidate.icon,
+                brandIconName: candidate.brandIconName,
+                brandName: candidate.brandName,
+                category: candidate.category,
                 confidence: candidate.score
             )
             let updatedHistory = PickupCodeHistoryStore.add(
                 code: candidate.code,
                 context: candidate.reason,
                 icon: candidate.icon,
+                brandIconName: candidate.brandIconName,
+                brandName: candidate.brandName,
+                category: candidate.category,
                 confidence: candidate.score
             )
 
@@ -105,7 +117,9 @@ struct ContentView: View {
                 resultText = "识别成功，已更新实时活动。"
                 parsedCode = candidate.code
                 currentIcon = candidate.icon
+                currentBrandIconName = candidate.brandIconName
                 currentReason = candidate.reason
+                currentBrandName = candidate.brandName
                 historyItems = updatedHistory
                 recognizedLines = lines
                 debugReport = report
@@ -115,7 +129,9 @@ struct ContentView: View {
                 resultText = "识别失败：\(error.localizedDescription)"
                 parsedCode = "-"
                 currentIcon = "fork.knife"
+                currentBrandIconName = nil
                 currentReason = "识别失败"
+                currentBrandName = nil
             }
         }
     }
@@ -123,7 +139,8 @@ struct ContentView: View {
     private var currentSnapshot: some View {
         liveActivitySnapshot(
             icon: currentIcon,
-            title: parsedCode == "-" ? "当前取码" : "当前取码",
+            brandIconName: currentBrandIconName,
+            title: currentBrandName ?? "当前取码",
             code: parsedCode,
             context: currentReason,
             date: nil,
@@ -158,7 +175,8 @@ struct ContentView: View {
                     ForEach(historyItems) { item in
                         liveActivitySnapshot(
                             icon: item.icon,
-                            title: "历史取码",
+                            brandIconName: item.brandIconName,
+                            title: item.brandName ?? "历史取码",
                             code: item.code,
                             context: item.context,
                             date: item.createdAt,
@@ -214,6 +232,7 @@ struct ContentView: View {
 
     private func liveActivitySnapshot(
         icon: String,
+        brandIconName: String? = nil,
         title: String,
         code: String,
         context: String,
@@ -222,11 +241,8 @@ struct ContentView: View {
     ) -> some View {
         ZStack(alignment: .bottomTrailing) {
             HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 42, weight: .semibold))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(snapshotPrimaryColor)
-                    .frame(width: 58)
+                snapshotIcon(icon, brandIconName: brandIconName)
+                    .frame(width: 58, height: 58)
                     .frame(maxHeight: .infinity, alignment: .center)
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -247,6 +263,14 @@ struct ContentView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.45)
                         .foregroundStyle(snapshotPrimaryColor)
+
+                    if !isPlaceholder {
+                        Text(context)
+                            .font(.caption)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .foregroundStyle(snapshotSecondaryColor)
+                    }
 
                     if !isPlaceholder && code.count > 4 && date == nil {
                         HStack {
@@ -275,7 +299,9 @@ struct ContentView: View {
                 await MainActor.run {
                     parsedCode = "-"
                     currentIcon = "fork.knife"
+                    currentBrandIconName = nil
                     currentReason = "等待识别"
+                    currentBrandName = nil
                     resultText = "已清除。"
                 }
             }
@@ -344,7 +370,9 @@ struct ContentView: View {
             await MainActor.run {
                 parsedCode = code
                 currentIcon = manualIcon
+                currentBrandIconName = nil
                 currentReason = reason
+                currentBrandName = nil
                 resultText = "已手动添加，已更新实时活动。"
                 historyItems = updatedHistory
                 manualCode = ""
@@ -366,6 +394,10 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Selected: \(debugReport?.selected.map { "\(iconLabel($0.icon)) \($0.code)" } ?? "-")")
                         .font(.subheadline.bold())
+
+                    Text("Brand: \(brandDebugText(debugReport))")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
 
                     Text("Candidates")
                         .font(.caption.bold())
@@ -425,6 +457,25 @@ struct ContentView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
     }
 
+    private var creditsView: some View {
+        VStack(spacing: 6) {
+            Text("@Lemonno")
+                .font(.caption.bold())
+
+            HStack(spacing: 0) {
+                Text("感谢 ")
+                Link("Hyper Pick-up Code", destination: URL(string: "https://github.com/badnng/Hyper-pick-up-code")!)
+                Text(" 的部分思路和灵感")
+            }
+            .font(.caption)
+        }
+        .foregroundStyle(.secondary)
+        .tint(.secondary)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 2)
+        .padding(.bottom, 24)
+    }
+
     private func format(_ value: Double) -> String {
         String(format: "%.3f", value)
     }
@@ -457,6 +508,31 @@ struct ContentView: View {
         default:
             return "食物"
         }
+    }
+
+    @ViewBuilder
+    private func snapshotIcon(_ icon: String, brandIconName: String?) -> some View {
+        if let brandIconName {
+            Image(brandIconName)
+                .resizable()
+                .scaledToFit()
+                .clipShape(Circle())
+                .shadow(color: .black.opacity(colorScheme == .dark ? 0.26 : 0.10), radius: 4, y: 2)
+        } else {
+            Image(systemName: icon)
+                .font(.system(size: 42, weight: .semibold))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(snapshotPrimaryColor)
+        }
+    }
+
+    private func brandDebugText(_ report: CodeExtractionDebugReport?) -> String {
+        guard let report else { return "-" }
+        guard let detection = report.brandDetection else {
+            return "- · category \(report.category.rawValue)"
+        }
+        let terms = detection.matchedTerms.joined(separator: ",")
+        return "\(detection.brand.name) · category \(detection.brand.category.rawValue) · score \(format(detection.score)) · \(terms)"
     }
 }
 

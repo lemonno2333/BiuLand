@@ -15,7 +15,15 @@ final class LiveActivityManager {
     }
 
     @MainActor
-    func upsert(code: String, context: String, icon: String, confidence: Double) async throws {
+    func upsert(
+        code: String,
+        context: String,
+        icon: String,
+        brandIconName: String? = nil,
+        brandName: String? = nil,
+        category: PickupCategory? = nil,
+        confidence: Double
+    ) async throws {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             throw LiveActivityError.notAuthorized
         }
@@ -24,6 +32,9 @@ final class LiveActivityManager {
             code: code,
             context: context,
             icon: icon,
+            brandIconName: brandIconName,
+            brandName: brandName,
+            category: category?.rawValue,
             confidence: confidence,
             updatedAt: Date()
         )

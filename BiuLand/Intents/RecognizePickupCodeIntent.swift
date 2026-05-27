@@ -52,6 +52,9 @@ struct RecognizePickupCodeIntent: LiveActivityIntent {
                 code: candidate.code,
                 context: candidate.reason,
                 icon: candidate.icon,
+                brandIconName: candidate.brandIconName,
+                brandName: candidate.brandName,
+                category: candidate.category,
                 confidence: candidate.score
             )
 
@@ -60,6 +63,9 @@ struct RecognizePickupCodeIntent: LiveActivityIntent {
                     code: candidate.code,
                     context: candidate.reason,
                     icon: candidate.icon,
+                    brandIconName: candidate.brandIconName,
+                    brandName: candidate.brandName,
+                    category: candidate.category,
                     confidence: candidate.score
                 )
             } catch {

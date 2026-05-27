@@ -6,6 +6,9 @@ struct CodeCandidate: Hashable {
     let score: Double
     let reason: String
     let icon: String
+    let brandIconName: String?
+    let brandName: String?
+    let category: PickupCategory?
 }
 
 struct CodeExtractionDebugCandidate: Hashable, Identifiable {
@@ -28,6 +31,8 @@ struct CodeExtractionDebugCandidate: Hashable, Identifiable {
 struct CodeExtractionDebugReport {
     let selected: CodeCandidate?
     let candidates: [CodeExtractionDebugCandidate]
+    let brandDetection: PickupBrandDetection?
+    let category: PickupCategory
 }
 
 enum CodeExtractor {
@@ -71,6 +76,7 @@ enum CodeExtractor {
     ]
 
     nonisolated private static let codeRegexes = [
+        #"(?<![A-Z0-9])\d{1,3}[/-]\d{1,3}[/-]\d{3,6}(?![A-Z0-9])"#,
         #"(?<![A-Z0-9])\d{1,2}[.。．、]\p{Han}[\p{Han}A-Z0-9]{1,19}(?![A-Z0-9])"#,
         #"(?<![A-Z0-9])[A-Z]{1,3}\d{3,6}(?![A-Z0-9])"#,
         #"(?<![A-Z0-9])\d{3,8}(?![A-Z0-9])"#,
@@ -95,13 +101,17 @@ enum CodeExtractor {
         let normalizedLines = lines.map { normalize($0.text) }
         let visualLines = visualLines(for: lines).map(normalize)
         let documentText = normalizedLines.joined(separator: "|")
+        let brandDetection = PickupBrandCatalog.detect(in: documentText)
+        let category = brandDetection?.brand.category ?? PickupBrandCatalog.fallbackCategory(for: documentText)
 
         for (index, normalizedLine) in normalizedLines.enumerated() {
             let context = context(around: index, in: normalizedLines)
             let visualLine = visualLines[index]
             for regex in codeRegexes {
                 for token in matches(regex: regex, in: normalizedLine) {
-                    let fixedToken = normalizeLikelyOCRConfusions(in: token, context: context)
+                    let fixedToken = normalizeExtractedCode(
+                        normalizeLikelyOCRConfusions(in: token, context: context)
+                    )
                     let spatialBoost = spatialKeywordBoost(
                         for: lines[index].boundingBox,
                         line: normalizedLine,
@@ -120,7 +130,7 @@ enum CodeExtractor {
                         spatialKeywordBoost: spatialBoost
                     )
                     let reason = reasonFor(token: fixedToken, line: normalizedLine, visualLine: visualLine, context: context)
-                    let icon = iconForPickupContext(visualLine + "|" + context + "|" + documentText)
+                    let icon = brandDetection?.brand.iconName ?? iconForPickupContext(visualLine + "|" + context + "|" + documentText)
                     debugCandidates.append(
                         CodeExtractionDebugCandidate(
                             rawToken: token,
@@ -146,9 +156,22 @@ enum CodeExtractor {
             isBetterCandidate(lhs, than: rhs)
         }
         let selected = sortedCandidates.first.flatMap {
-            $0.score >= 0.5 ? CodeCandidate(code: $0.normalizedToken, score: $0.score, reason: $0.reason, icon: $0.icon) : nil
+            $0.score >= 0.5 ? CodeCandidate(
+                code: $0.normalizedToken,
+                score: $0.score,
+                reason: $0.reason,
+                icon: $0.icon,
+                brandIconName: brandDetection?.brand.logoAssetName,
+                brandName: brandDetection?.brand.name,
+                category: category
+            ) : nil
         }
-        return CodeExtractionDebugReport(selected: selected, candidates: sortedCandidates)
+        return CodeExtractionDebugReport(
+            selected: selected,
+            candidates: sortedCandidates,
+            brandDetection: brandDetection,
+            category: category
+        )
     }
 
     nonisolated private static func normalize(_ text: String) -> String {
@@ -240,6 +263,13 @@ enum CodeExtractor {
         return digitCount >= max(3, token.count - 1) ? replaced : token
     }
 
+    nonisolated private static func normalizeExtractedCode(_ token: String) -> String {
+        if looksLikeExpressPickupCode(token) {
+            return token.replacingOccurrences(of: "/", with: "-")
+        }
+        return token
+    }
+
     nonisolated private static func score(
         code: String,
         line: String,
@@ -259,6 +289,9 @@ enum CodeExtractor {
         if code.count == 3 && (strongLine || spatialKeywordBoost > 0) { score += 0.12 }
         if code.allSatisfy(\.isNumber) { score += 0.14 }
         if code.contains(where: \.isLetter) && code.contains(where: \.isNumber) { score += 0.12 }
+        if looksLikeExpressPickupCode(code) {
+            score += 0.36
+        }
         if looksLikePhraseCode(code) { score += 0.28 }
         if strongLine { score += 0.42 }
         if !strongLine { score += spatialKeywordBoost }
@@ -360,6 +393,12 @@ enum CodeExtractor {
             return lhsPhraseCode
         }
 
+        let lhsExpressCode = looksLikeExpressPickupCode(lhs.normalizedToken)
+        let rhsExpressCode = looksLikeExpressPickupCode(rhs.normalizedToken)
+        if lhsExpressCode != rhsExpressCode {
+            return lhsExpressCode
+        }
+
         if lhs.confidence != rhs.confidence {
             return lhs.confidence > rhs.confidence
         }
@@ -379,6 +418,9 @@ enum CodeExtractor {
         }
         if keywordAppearsNear(code: token, in: line) {
             return "关键词旁码"
+        }
+        if looksLikeExpressPickupCode(token) {
+            return "快递取件码"
         }
         if contextHasStrongKeyword(context) {
             return "邻近行命中关键词"
@@ -476,6 +518,10 @@ enum CodeExtractor {
 
     nonisolated private static func looksLikePhraseCode(_ code: String) -> Bool {
         matches(regex: #"^\d{1,2}[.。．、]\p{Han}[\p{Han}A-Z0-9]{1,19}$"#, in: code).contains(code)
+    }
+
+    nonisolated private static func looksLikeExpressPickupCode(_ code: String) -> Bool {
+        matches(regex: #"^\d{1,3}[/-]\d{1,3}[/-]\d{3,6}$"#, in: code).isEmpty == false
     }
 
     nonisolated private static func looksLikeCouponPhrase(_ code: String, line: String) -> Bool {

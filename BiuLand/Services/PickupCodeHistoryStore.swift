@@ -5,6 +5,9 @@ struct PickupCodeHistoryItem: Codable, Hashable, Identifiable {
     let code: String
     let context: String
     let icon: String
+    let brandIconName: String?
+    let brandName: String?
+    let category: PickupCategory?
     let confidence: Double
     let createdAt: Date
 }
@@ -22,12 +25,23 @@ enum PickupCodeHistoryStore {
     }
 
     @discardableResult
-    nonisolated static func add(code: String, context: String, icon: String, confidence: Double) -> [PickupCodeHistoryItem] {
+    nonisolated static func add(
+        code: String,
+        context: String,
+        icon: String,
+        brandIconName: String? = nil,
+        brandName: String? = nil,
+        category: PickupCategory? = nil,
+        confidence: Double
+    ) -> [PickupCodeHistoryItem] {
         let item = PickupCodeHistoryItem(
             id: UUID(),
             code: code,
             context: context,
             icon: icon,
+            brandIconName: brandIconName,
+            brandName: brandName,
+            category: category,
             confidence: confidence,
             createdAt: Date()
         )

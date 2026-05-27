@@ -38,6 +38,10 @@ BiuLand 使用 Vision OCR 提取截图文字，并结合以下信息为候选取
 
 调试面板可以查看 OCR 原始行、候选取码、得分、文本框坐标等信息。
 
+## 致谢
+
+感谢 [Hyper Pick-up Code](https://github.com/badnng/Hyper-pick-up-code) 提供的部分思路和灵感。相关第三方版权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ## 开发环境
 
 - Xcode 26 或更新版本
