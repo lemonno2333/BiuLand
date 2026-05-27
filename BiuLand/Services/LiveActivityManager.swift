@@ -11,6 +11,11 @@ final class LiveActivityManager {
 
     @MainActor
     func upsert(code: String, context: String, confidence: Double) async throws {
+        try await upsert(code: code, context: context, icon: "fork.knife", confidence: confidence)
+    }
+
+    @MainActor
+    func upsert(code: String, context: String, icon: String, confidence: Double) async throws {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             throw LiveActivityError.notAuthorized
         }
@@ -18,6 +23,7 @@ final class LiveActivityManager {
         let state = PickupCodeActivityAttributes.ContentState(
             code: code,
             context: context,
+            icon: icon,
             confidence: confidence,
             updatedAt: Date()
         )

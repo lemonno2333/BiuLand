@@ -1,5 +1,6 @@
 import AppIntents
 
+@available(iOS 17.0, *)
 struct PickupCodeShortcutsProvider: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

@@ -5,6 +5,7 @@ struct CodeCandidate: Hashable {
     let code: String
     let score: Double
     let reason: String
+    let icon: String
 }
 
 struct CodeExtractionDebugCandidate: Hashable, Identifiable {
@@ -21,6 +22,7 @@ struct CodeExtractionDebugCandidate: Hashable, Identifiable {
     let boundingBox: CGRect
     let imageSize: CGSize
     let spatialKeywordBoost: Double
+    let icon: String
 }
 
 struct CodeExtractionDebugReport {
@@ -92,6 +94,7 @@ enum CodeExtractor {
         var debugCandidates: [CodeExtractionDebugCandidate] = []
         let normalizedLines = lines.map { normalize($0.text) }
         let visualLines = visualLines(for: lines).map(normalize)
+        let documentText = normalizedLines.joined(separator: "|")
 
         for (index, normalizedLine) in normalizedLines.enumerated() {
             let context = context(around: index, in: normalizedLines)
@@ -117,6 +120,7 @@ enum CodeExtractor {
                         spatialKeywordBoost: spatialBoost
                     )
                     let reason = reasonFor(token: fixedToken, line: normalizedLine, visualLine: visualLine, context: context)
+                    let icon = iconForPickupContext(visualLine + "|" + context + "|" + documentText)
                     debugCandidates.append(
                         CodeExtractionDebugCandidate(
                             rawToken: token,
@@ -130,7 +134,8 @@ enum CodeExtractor {
                             confidence: lines[index].confidence,
                             boundingBox: lines[index].boundingBox,
                             imageSize: lines[index].imageSize,
-                            spatialKeywordBoost: spatialBoost
+                            spatialKeywordBoost: spatialBoost,
+                            icon: icon
                         )
                     )
                 }
@@ -141,7 +146,7 @@ enum CodeExtractor {
             isBetterCandidate(lhs, than: rhs)
         }
         let selected = sortedCandidates.first.flatMap {
-            $0.score >= 0.5 ? CodeCandidate(code: $0.normalizedToken, score: $0.score, reason: $0.reason) : nil
+            $0.score >= 0.5 ? CodeCandidate(code: $0.normalizedToken, score: $0.score, reason: $0.reason, icon: $0.icon) : nil
         }
         return CodeExtractionDebugReport(selected: selected, candidates: sortedCandidates)
     }
@@ -394,6 +399,30 @@ enum CodeExtractor {
 
     nonisolated private static func contextHasWeakKeyword(_ context: String) -> Bool {
         weakKeywords.contains { context.contains($0) }
+    }
+
+    nonisolated private static func iconForPickupContext(_ text: String) -> String {
+        let packageKeywords = [
+            "取件", "快递", "包裹", "开柜", "柜机", "驿站", "菜鸟", "丰巢", "取货", "提货", "取货凭证", "取件凭证"
+        ]
+        let drinkKeywords = [
+            "饮品", "取茶", "茶号", "奶茶", "咖啡", "星巴克", "瑞幸", "库迪", "喜茶", "奈雪", "霸王茶姬",
+            "茶百道", "古茗", "蜜雪", "拿铁", "美式", "冰饮", "热饮"
+        ]
+        let foodKeywords = [
+            "取餐", "餐品", "餐号", "外卖", "美团", "饿了么", "汉堡", "炸鸡", "披萨", "饭", "面", "粉", "粥"
+        ]
+
+        if packageKeywords.contains(where: { text.contains($0) }) {
+            return "shippingbox.fill"
+        }
+        if drinkKeywords.contains(where: { text.contains($0) }) {
+            return "cup.and.saucer.fill"
+        }
+        if foodKeywords.contains(where: { text.contains($0) }) {
+            return "fork.knife"
+        }
+        return "fork.knife"
     }
 
     nonisolated private static func keywordAppearsNear(code: String, in line: String) -> Bool {
