@@ -33,6 +33,7 @@ struct CodeExtractionDebugReport {
     let candidates: [CodeExtractionDebugCandidate]
     let brandDetection: PickupBrandDetection?
     let category: PickupCategory
+    let pickupLocation: String?
 }
 
 enum CodeExtractor {
@@ -103,6 +104,7 @@ enum CodeExtractor {
         let documentText = normalizedLines.joined(separator: "|")
         let brandDetection = PickupBrandCatalog.detect(in: documentText)
         let category = brandDetection?.brand.category ?? PickupBrandCatalog.fallbackCategory(for: documentText)
+        let pickupLocation = pickupLocation(from: lines, normalizedLines: normalizedLines, visualLines: visualLines, category: category)
 
         for (index, normalizedLine) in normalizedLines.enumerated() {
             let context = context(around: index, in: normalizedLines)
@@ -159,7 +161,7 @@ enum CodeExtractor {
             $0.score >= 0.5 ? CodeCandidate(
                 code: $0.normalizedToken,
                 score: $0.score,
-                reason: $0.reason,
+                reason: pickupLocation ?? "",
                 icon: $0.icon,
                 brandIconName: brandDetection?.brand.logoAssetName,
                 brandName: brandDetection?.brand.name,
@@ -170,7 +172,8 @@ enum CodeExtractor {
             selected: selected,
             candidates: sortedCandidates,
             brandDetection: brandDetection,
-            category: category
+            category: category,
+            pickupLocation: pickupLocation
         )
     }
 
@@ -241,6 +244,153 @@ enum CodeExtractor {
             }
         }
         return result
+    }
+
+    nonisolated private static func pickupLocation(
+        from lines: [RecognizedTextLine],
+        normalizedLines: [String],
+        visualLines: [String],
+        category: PickupCategory
+    ) -> String? {
+        guard lines.isEmpty == false else { return nil }
+        var candidates: [(text: String, score: Double)] = []
+
+        for index in lines.indices {
+            let normalizedLine = normalizedLines[index]
+            let visualLine = visualLines[index]
+            let rawLine = lines[index].text
+
+            if let inlineLocation = inlinePickupLocation(fromRaw: rawLine, normalized: normalizedLine) {
+                candidates.append((inlineLocation, 1.0 + locationKeywordScore(normalizedLine, category: category)))
+            }
+
+            if let visualLocation = inlinePickupLocation(fromRaw: visualLine, normalized: visualLine) {
+                candidates.append((visualLocation, 0.95 + locationKeywordScore(visualLine, category: category)))
+            }
+
+            if lineLooksLikeLocationLabel(normalizedLine) || lineLooksLikeLocationLabel(visualLine) {
+                for neighborIndex in (index + 1)..<min(lines.count, index + 4) {
+                    let neighbor = lines[neighborIndex].text
+                    let normalizedNeighbor = normalizedLines[neighborIndex]
+                    guard isPlausiblePickupLocation(normalizedNeighbor) else { continue }
+                    candidates.append((cleanPickupLocation(neighbor), 0.72 + locationKeywordScore(normalizedNeighbor, category: category)))
+                    break
+                }
+            }
+
+            if isPlausiblePickupLocation(normalizedLine) {
+                let score = 0.42 + locationKeywordScore(normalizedLine, category: category) + locationPositionScore(lines[index].boundingBox)
+                candidates.append((cleanPickupLocation(rawLine), score))
+            }
+        }
+
+        return candidates
+            .map { (cleanPickupLocation($0.text), $0.score) }
+            .filter { $0.0.isEmpty == false }
+            .sorted { lhs, rhs in
+                if lhs.1 != rhs.1 { return lhs.1 > rhs.1 }
+                return lhs.0.count > rhs.0.count
+            }
+            .first?
+            .0
+    }
+
+    nonisolated private static func inlinePickupLocation(fromRaw rawText: String, normalized: String) -> String? {
+        let raw = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let labels = [
+            "取餐地点", "取件地点", "取货地点", "提货地点", "自提地点", "取餐地址", "取件地址", "取货地址",
+            "提货地址", "自提地址", "门店地址", "店铺地址", "取件点", "自提点", "门店", "驿站", "柜机"
+        ]
+
+        for label in labels where normalized.contains(normalize(label)) {
+            let variants = [label, "\(label):", "\(label)："]
+            for variant in variants {
+                if let range = raw.range(of: variant) {
+                    let suffix = String(raw[range.upperBound...])
+                    let cleaned = cleanPickupLocation(suffix)
+                    if isPlausiblePickupLocation(normalize(cleaned)) {
+                        return cleaned
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    nonisolated private static func lineLooksLikeLocationLabel(_ line: String) -> Bool {
+        let labels = [
+            "取餐地点", "取件地点", "取货地点", "提货地点", "自提地点", "取餐地址", "取件地址", "取货地址",
+            "提货地址", "自提地址", "门店地址", "店铺地址", "取件点", "自提点"
+        ]
+        return labels.contains { line.contains(normalize($0)) }
+    }
+
+    nonisolated private static func isPlausiblePickupLocation(_ line: String) -> Bool {
+        guard line.count >= 3 && line.count <= 36 else { return false }
+        if line.allSatisfy(\.isNumber) { return false }
+        if matches(regex: #"\d{4}[年./]\d{1,2}[月./]\d{1,2}"#, in: line).isEmpty == false { return false }
+        if matches(regex: #"\d{1,2}[:：]\d{2}"#, in: line).isEmpty == false { return false }
+
+        let rejectKeywords = [
+            "取餐码", "取件码", "取货码", "提货码", "订单", "付款", "支付", "时间", "日期", "电话", "手机号",
+            "金额", "实付", "合计", "商品明细", "问题反馈", "优惠", "评价", "已完成", "制作中", "请凭"
+        ]
+        if rejectKeywords.contains(where: { line.contains($0) }) { return false }
+
+        let locationKeywords = [
+            "店", "门店", "地址", "楼", "层", "号", "室", "路", "街", "道", "广场", "中心", "商场", "大厦",
+            "驿站", "菜鸟", "丰巢", "柜", "柜机", "货架", "取件点", "自提点", "大学", "园区", "小区"
+        ]
+        return locationKeywords.contains { line.contains($0) }
+    }
+
+    nonisolated private static func cleanPickupLocation(_ text: String) -> String {
+        var cleaned = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "取餐地点", with: "")
+            .replacingOccurrences(of: "取件地点", with: "")
+            .replacingOccurrences(of: "取货地点", with: "")
+            .replacingOccurrences(of: "提货地点", with: "")
+            .replacingOccurrences(of: "自提地点", with: "")
+            .replacingOccurrences(of: "取餐地址", with: "")
+            .replacingOccurrences(of: "取件地址", with: "")
+            .replacingOccurrences(of: "取货地址", with: "")
+            .replacingOccurrences(of: "提货地址", with: "")
+            .replacingOccurrences(of: "自提地址", with: "")
+            .replacingOccurrences(of: "门店地址", with: "")
+            .replacingOccurrences(of: "店铺地址", with: "")
+            .replacingOccurrences(of: "取件点", with: "")
+            .replacingOccurrences(of: "自提点", with: "")
+            .replacingOccurrences(of: "：", with: "")
+            .replacingOccurrences(of: ":", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let separators = ["距离", "电话", "营业时间", "导航", "复制", "查看地图"]
+        for separator in separators {
+            if let range = cleaned.range(of: separator) {
+                cleaned = String(cleaned[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return cleaned
+    }
+
+    nonisolated private static func locationKeywordScore(_ line: String, category: PickupCategory) -> Double {
+        var score = 0.0
+        if line.contains("地址") || line.contains("地点") { score += 0.22 }
+        if line.contains("门店") || line.contains("店") { score += 0.16 }
+        if line.contains("取件点") || line.contains("自提点") { score += 0.22 }
+        if line.contains("驿站") || line.contains("丰巢") || line.contains("菜鸟") || line.contains("柜机") {
+            score += category == .express ? 0.3 : 0.16
+        }
+        return score
+    }
+
+    nonisolated private static func locationPositionScore(_ boundingBox: CGRect) -> Double {
+        guard boundingBox != .zero else { return 0 }
+        if boundingBox.midY >= 0.18 && boundingBox.midY <= 0.72 { return 0.08 }
+        return 0
     }
 
     nonisolated private static func normalizeLikelyOCRConfusions(in token: String, context: String) -> String {

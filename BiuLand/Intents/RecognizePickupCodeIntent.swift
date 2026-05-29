@@ -22,8 +22,9 @@ enum RecognizePickupCodeIntentError: LocalizedError {
 
 @available(iOS 17.0, *)
 struct RecognizePickupCodeIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "识别取码并显示"
+    static var title: LocalizedStringResource = "识别截图取码"
     static var description = IntentDescription("识别截图中的取餐码/取件码，并更新灵动岛与实时活动。")
+    static var isDiscoverable: Bool = true
     static var openAppWhenRun: Bool = false
 
     @available(iOS 26.0, *)

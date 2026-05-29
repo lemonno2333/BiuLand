@@ -6,10 +6,11 @@ struct PickupCodeShortcutsProvider: AppShortcutsProvider {
         AppShortcut(
             intent: RecognizePickupCodeIntent(),
             phrases: [
+                "识别截图取码 \(.applicationName)",
                 "识别取码 \(.applicationName)",
                 "用 \(.applicationName) 识别截图"
             ],
-            shortTitle: "识别取码",
+            shortTitle: "识别截图取码",
             systemImageName: "text.viewfinder"
         )
     }

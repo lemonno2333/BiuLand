@@ -3,6 +3,7 @@ import PhotosUI
 
 struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedItem: PhotosPickerItem?
     @State private var resultText = "请选择一张截图，或通过快捷指令触发识别。"
@@ -42,7 +43,12 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .onAppear {
-                historyItems = PickupCodeHistoryStore.load()
+                refreshFromHistory()
+            }
+            .onChange(of: scenePhase) { newPhase in
+                if newPhase == .active {
+                    refreshFromHistory()
+                }
             }
             .onChange(of: selectedItem) { newItem in
                 guard let newItem else { return }
@@ -148,6 +154,19 @@ struct ContentView: View {
         )
     }
 
+    private func refreshFromHistory() {
+        let items = PickupCodeHistoryStore.load()
+        historyItems = items
+
+        guard let latest = items.first else { return }
+        parsedCode = latest.code
+        currentIcon = latest.icon
+        currentBrandIconName = latest.brandIconName
+        currentReason = latest.context
+        currentBrandName = latest.brandName
+        resultText = "已同步最新取码。"
+    }
+
     private var historyView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -230,6 +249,7 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
     private func liveActivitySnapshot(
         icon: String,
         brandIconName: String? = nil,
@@ -239,6 +259,8 @@ struct ContentView: View {
         date: Date?,
         isPlaceholder: Bool
     ) -> some View {
+        let visibleContext = visiblePickupContext(context)
+
         ZStack(alignment: .bottomTrailing) {
             HStack(spacing: 16) {
                 snapshotIcon(icon, brandIconName: brandIconName)
@@ -264,8 +286,8 @@ struct ContentView: View {
                         .minimumScaleFactor(0.45)
                         .foregroundStyle(snapshotPrimaryColor)
 
-                    if !isPlaceholder {
-                        Text(context)
+                    if !isPlaceholder && visibleContext.isEmpty == false {
+                        Text(visibleContext)
                             .font(.caption)
                             .lineLimit(1)
                             .minimumScaleFactor(0.75)
@@ -528,11 +550,17 @@ struct ContentView: View {
 
     private func brandDebugText(_ report: CodeExtractionDebugReport?) -> String {
         guard let report else { return "-" }
+        let location = report.pickupLocation ?? "-"
         guard let detection = report.brandDetection else {
-            return "- · category \(report.category.rawValue)"
+            return "- · category \(report.category.rawValue) · location \(location)"
         }
         let terms = detection.matchedTerms.joined(separator: ",")
-        return "\(detection.brand.name) · category \(detection.brand.category.rawValue) · score \(format(detection.score)) · \(terms)"
+        return "\(detection.brand.name) · category \(detection.brand.category.rawValue) · score \(format(detection.score)) · location \(location) · \(terms)"
+    }
+
+    private func visiblePickupContext(_ context: String) -> String {
+        let internalReasons = ["邻近行命中关键词", "快递取件码", "关键词旁码", "数字码型", "字母数字混合", "负向上下文"]
+        return internalReasons.contains(context) ? "" : context
     }
 }
 

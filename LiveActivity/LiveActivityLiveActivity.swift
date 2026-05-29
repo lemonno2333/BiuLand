@@ -15,6 +15,7 @@ struct LiveActivityLiveActivity: Widget {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 DynamicIslandExpandedRegion(.center) {
+                    let visibleContext = visiblePickupContext(context.state.context)
                     VStack(spacing: 5) {
                         Text(context.state.brandName ?? "当前取码")
                             .font(.caption)
@@ -23,6 +24,13 @@ struct LiveActivityLiveActivity: Widget {
                             .font(.system(size: context.state.code.count > 4 ? 28 : 34, weight: .heavy, design: .rounded))
                             .lineLimit(1)
                             .minimumScaleFactor(0.42)
+                        if visibleContext.isEmpty == false {
+                            Text(visibleContext)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -110,7 +118,10 @@ struct LiveActivityLiveActivity: Widget {
         }
     }
 
+    @ViewBuilder
     private func codeBlock(for state: PickupCodeActivityAttributes.ContentState, codeSize: CGFloat) -> some View {
+        let visibleContext = visiblePickupContext(state.context)
+
         VStack(alignment: .leading, spacing: 8) {
             Text(state.brandName ?? "当前取码")
                 .font(.caption)
@@ -119,8 +130,8 @@ struct LiveActivityLiveActivity: Widget {
                 .font(.system(size: codeSize, weight: .heavy, design: .rounded))
                 .lineLimit(1)
                 .minimumScaleFactor(0.38)
-            if state.context.isEmpty == false {
-                Text(state.context)
+            if visibleContext.isEmpty == false {
+                Text(visibleContext)
                     .font(.caption2)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -141,5 +152,10 @@ struct LiveActivityLiveActivity: Widget {
             .tint(.white.opacity(0.16))
             .foregroundStyle(.white)
         }
+    }
+
+    private func visiblePickupContext(_ context: String) -> String {
+        let internalReasons = ["邻近行命中关键词", "快递取件码", "关键词旁码", "数字码型", "字母数字混合", "负向上下文"]
+        return internalReasons.contains(context) ? "" : context
     }
 }
