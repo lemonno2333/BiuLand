@@ -54,6 +54,7 @@
 		B3B00BE92FAB157B00DFA28D /* Exceptions for "BiuLand" folder in "LiveActivityExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Shared/CompletePickupCodeIntent.swift,
 				Shared/PickupCodeActivityAttributes.swift,
 			);
 			target = B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */;
@@ -195,11 +196,11 @@
 				};
 			};
 			buildConfigurationList = B3B00BA62FAB121E00DFA28D /* Build configuration list for PBXProject "BiuLand" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 				Base,
+				"zh-Hans",
 			);
 			mainGroup = B3B00BA22FAB121E00DFA28D;
 			minimizedProjectReferenceProxies = 1;

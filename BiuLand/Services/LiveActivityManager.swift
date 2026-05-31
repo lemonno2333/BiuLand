@@ -10,6 +10,11 @@ final class LiveActivityManager {
     private init() {}
 
     @MainActor
+    var hasActiveActivities: Bool {
+        Activity<PickupCodeActivityAttributes>.activities.isEmpty == false
+    }
+
+    @MainActor
     func upsert(code: String, context: String, confidence: Double) async throws {
         try await upsert(code: code, context: context, icon: "fork.knife", confidence: confidence)
     }
@@ -43,7 +48,7 @@ final class LiveActivityManager {
             await existing.update(
                 ActivityContent(
                     state: state,
-                    staleDate: Calendar.current.date(byAdding: .hour, value: 1, to: Date())
+                    staleDate: Date().addingTimeInterval(20 * 60)
                 )
             )
             return
@@ -54,7 +59,7 @@ final class LiveActivityManager {
             attributes: attributes,
             content: ActivityContent(
                 state: state,
-                staleDate: Calendar.current.date(byAdding: .hour, value: 1, to: Date())
+                staleDate: Date().addingTimeInterval(20 * 60)
             ),
             pushType: nil
         )
@@ -63,7 +68,10 @@ final class LiveActivityManager {
     @MainActor
     func endAll() async {
         for activity in Activity<PickupCodeActivityAttributes>.activities {
-            await activity.end(dismissalPolicy: .immediate)
+            await activity.end(
+                ActivityContent(state: activity.content.state, staleDate: nil),
+                dismissalPolicy: .immediate
+            )
         }
     }
 }

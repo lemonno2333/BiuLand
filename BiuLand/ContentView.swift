@@ -16,6 +16,12 @@ struct ContentView: View {
     @State private var recognizedLines: [RecognizedTextLine] = []
     @State private var debugReport: CodeExtractionDebugReport?
     @State private var showDebug = false
+    @State private var showDebugToggle = false
+    @State private var currentSnapshotTapCount = 0
+    @State private var showDebugBanner = false
+    @State private var debugBannerMessage = ""
+    @State private var currentExpirationTask: Task<Void, Never>?
+    @State private var liveActivityMonitorTask: Task<Void, Never>?
     @State private var showManualAdd = false
     @State private var manualCode = ""
     @State private var manualIcon = "fork.knife"
@@ -38,8 +44,16 @@ struct ContentView: View {
                     .padding(20)
                 }
                 .scrollIndicators(.hidden)
+
+                debugModeBanner
+                    .padding(.top, 4)
+                    .offset(y: showDebugBanner ? -44 : -112)
+                    .opacity(showDebugBanner ? 1 : 0)
+                    .allowsHitTesting(showDebugBanner)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.82), value: showDebugBanner)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            .navigationTitle("BiuLand")
+            .navigationTitle(showDebugBanner ? "" : "BiuLand")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .onAppear {
@@ -109,7 +123,7 @@ struct ContentView: View {
                 category: candidate.category,
                 confidence: candidate.score
             )
-            let updatedHistory = PickupCodeHistoryStore.add(
+            let current = PickupCodeHistoryStore.saveCurrent(
                 code: candidate.code,
                 context: candidate.reason,
                 icon: candidate.icon,
@@ -121,12 +135,8 @@ struct ContentView: View {
 
             await MainActor.run {
                 resultText = "识别成功，已更新实时活动。"
-                parsedCode = candidate.code
-                currentIcon = candidate.icon
-                currentBrandIconName = candidate.brandIconName
-                currentReason = candidate.reason
-                currentBrandName = candidate.brandName
-                historyItems = updatedHistory
+                applyCurrent(current)
+                historyItems = PickupCodeHistoryStore.load()
                 recognizedLines = lines
                 debugReport = report
             }
@@ -152,19 +162,117 @@ struct ContentView: View {
             date: nil,
             isPlaceholder: parsedCode == "-"
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            handleCurrentSnapshotTap()
+        }
     }
 
     private func refreshFromHistory() {
-        let items = PickupCodeHistoryStore.load()
-        historyItems = items
+        historyItems = PickupCodeHistoryStore.archiveCurrentIfExpired()
 
-        guard let latest = items.first else { return }
-        parsedCode = latest.code
-        currentIcon = latest.icon
-        currentBrandIconName = latest.brandIconName
-        currentReason = latest.context
-        currentBrandName = latest.brandName
-        resultText = "已同步最新取码。"
+        if let current = PickupCodeHistoryStore.loadCurrent() {
+            if LiveActivityManager.shared.hasActiveActivities == false {
+                historyItems = PickupCodeHistoryStore.completeCurrent()
+                resetCurrentSnapshot()
+                resultText = "已同步已完成取码。"
+                return
+            }
+            applyCurrent(current)
+            resultText = "已同步最新取码。"
+        } else {
+            resetCurrentSnapshot()
+        }
+    }
+
+    private func applyCurrent(_ current: CurrentPickupCodeItem) {
+        parsedCode = current.code
+        currentIcon = current.icon
+        currentBrandIconName = current.brandIconName
+        currentReason = current.context
+        currentBrandName = current.brandName
+        scheduleCurrentExpiration(for: current)
+        scheduleLiveActivityCompletionMonitor()
+    }
+
+    private func resetCurrentSnapshot() {
+        currentExpirationTask?.cancel()
+        currentExpirationTask = nil
+        liveActivityMonitorTask?.cancel()
+        liveActivityMonitorTask = nil
+        parsedCode = "-"
+        currentIcon = "fork.knife"
+        currentBrandIconName = nil
+        currentReason = "等待识别"
+        currentBrandName = nil
+    }
+
+    private func scheduleCurrentExpiration(for current: CurrentPickupCodeItem) {
+        currentExpirationTask?.cancel()
+
+        let delay = max(0, current.expiresAt.timeIntervalSinceNow)
+        currentExpirationTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard Task.isCancelled == false else { return }
+
+            await LiveActivityManager.shared.endAll()
+            await MainActor.run {
+                historyItems = PickupCodeHistoryStore.archiveCurrentIfExpired()
+                if PickupCodeHistoryStore.loadCurrent() == nil {
+                    resetCurrentSnapshot()
+                    resultText = "当前取码已过期，已归档到历史。"
+                }
+            }
+        }
+    }
+
+    private func scheduleLiveActivityCompletionMonitor() {
+        liveActivityMonitorTask?.cancel()
+        liveActivityMonitorTask = Task {
+            while Task.isCancelled == false {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard Task.isCancelled == false else { return }
+                guard PickupCodeHistoryStore.loadCurrent() != nil else { return }
+
+                if await LiveActivityManager.shared.hasActiveActivities == false {
+                    await MainActor.run {
+                        historyItems = PickupCodeHistoryStore.completeCurrent()
+                        resetCurrentSnapshot()
+                        resultText = "已同步已完成取码。"
+                    }
+                    return
+                }
+            }
+        }
+    }
+
+    private func handleCurrentSnapshotTap() {
+        currentSnapshotTapCount += 1
+        guard currentSnapshotTapCount >= 5 else { return }
+
+        currentSnapshotTapCount = 0
+        showDebugToggle.toggle()
+        if showDebugToggle == false {
+            showDebug = false
+        }
+        showDebugModeBanner(showDebugToggle ? "调试模式已显示" : "调试模式已隐藏")
+    }
+
+    private func showDebugModeBanner(_ message: String) {
+        debugBannerMessage = message
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            showDebugBanner = true
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run {
+                guard debugBannerMessage == message else { return }
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    showDebugBanner = false
+                }
+            }
+        }
     }
 
     private var historyView: some View {
@@ -173,7 +281,7 @@ struct ContentView: View {
                 Text("历史取码")
                     .font(.headline)
                 Spacer()
-                Text("\(historyItems.count)/10")
+                Text("\(historyItems.count)/5")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -317,14 +425,12 @@ struct ContentView: View {
     private func localCompletionButton(icon: String) -> some View {
         let button = Button {
             Task {
+                let updatedHistory = PickupCodeHistoryStore.completeCurrent()
                 await LiveActivityManager.shared.endAll()
                 await MainActor.run {
-                    parsedCode = "-"
-                    currentIcon = "fork.knife"
-                    currentBrandIconName = nil
-                    currentReason = "等待识别"
-                    currentBrandName = nil
-                    resultText = "已清除。"
+                    historyItems = updatedHistory
+                    resetCurrentSnapshot()
+                    resultText = "已完成，已归档到历史。"
                 }
             }
         } label: {
@@ -382,7 +488,7 @@ struct ContentView: View {
                 icon: manualIcon,
                 confidence: 1
             )
-            let updatedHistory = PickupCodeHistoryStore.add(
+            let current = PickupCodeHistoryStore.saveCurrent(
                 code: code,
                 context: reason,
                 icon: manualIcon,
@@ -390,13 +496,9 @@ struct ContentView: View {
             )
 
             await MainActor.run {
-                parsedCode = code
-                currentIcon = manualIcon
-                currentBrandIconName = nil
-                currentReason = reason
-                currentBrandName = nil
+                applyCurrent(current)
                 resultText = "已手动添加，已更新实时活动。"
-                historyItems = updatedHistory
+                historyItems = PickupCodeHistoryStore.load()
                 manualCode = ""
                 showManualAdd = false
             }
@@ -407,76 +509,94 @@ struct ContentView: View {
         }
     }
 
+    @ViewBuilder
     private var debugView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle("调试信息", isOn: $showDebug)
-                .font(.headline)
+        if showDebugToggle {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("调试信息", isOn: $showDebug)
+                    .font(.headline)
 
-            if showDebug {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Selected: \(debugReport?.selected.map { "\(iconLabel($0.icon)) \($0.code)" } ?? "-")")
-                        .font(.subheadline.bold())
+                if showDebug {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Selected: \(debugReport?.selected.map { "\(iconLabel($0.icon)) \($0.code)" } ?? "-")")
+                            .font(.subheadline.bold())
 
-                    Text("Brand: \(brandDebugText(debugReport))")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        Text("Brand: \(brandDebugText(debugReport))")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
 
-                    Text("Candidates")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
+                        Text("Candidates")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
 
-                    if let debugReport, debugReport.candidates.isEmpty == false {
-                        ForEach(debugReport.candidates.prefix(20)) { candidate in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("\(iconLabel(candidate.icon)) \(candidate.normalizedToken)  score \(format(candidate.score))")
-                                    .font(.system(.caption, design: .monospaced).bold())
-                                Text("raw: \(candidate.rawToken) | \(candidate.reason) | spatial \(format(candidate.spatialKeywordBoost)) | conf \(format(Double(candidate.confidence)))")
-                                    .font(.system(.caption2, design: .monospaced))
-                                Text("line: \(candidate.sourceText)")
-                                    .font(.caption2)
-                                Text("visual: \(candidate.visualLine)")
-                                    .font(.caption2)
-                                Text("box: \(formatBox(candidate.boundingBox))")
+                        if let debugReport, debugReport.candidates.isEmpty == false {
+                            ForEach(debugReport.candidates.prefix(20)) { candidate in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("\(iconLabel(candidate.icon)) \(candidate.normalizedToken)  score \(format(candidate.score))")
+                                        .font(.system(.caption, design: .monospaced).bold())
+                                    Text("raw: \(candidate.rawToken) | \(candidate.reason) | spatial \(format(candidate.spatialKeywordBoost)) | conf \(format(Double(candidate.confidence)))")
+                                        .font(.system(.caption2, design: .monospaced))
+                                    Text("line: \(candidate.sourceText)")
+                                        .font(.caption2)
+                                    Text("visual: \(candidate.visualLine)")
+                                        .font(.caption2)
+                                    Text("box: \(formatBox(candidate.boundingBox))")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                    Text("px: \(formatPixelBox(candidate.boundingBox, imageSize: candidate.imageSize))")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            }
+                        } else {
+                            Text("No candidates")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text("OCR Lines")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
+
+                        ForEach(Array(recognizedLines.enumerated()), id: \.offset) { index, line in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("#\(index) \(line.text)")
+                                    .font(.system(.caption, design: .monospaced))
+                                Text("conf \(format(Double(line.confidence))) | box \(formatBox(line.boundingBox))")
                                     .font(.system(.caption2, design: .monospaced))
                                     .foregroundStyle(.secondary)
-                                Text("px: \(formatPixelBox(candidate.boundingBox, imageSize: candidate.imageSize))")
+                                Text("px \(formatPixelBox(line.boundingBox, imageSize: line.imageSize))")
                                     .font(.system(.caption2, design: .monospaced))
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(8)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                         }
-                    } else {
-                        Text("No candidates")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text("OCR Lines")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 4)
-
-                    ForEach(Array(recognizedLines.enumerated()), id: \.offset) { index, line in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("#\(index) \(line.text)")
-                                .font(.system(.caption, design: .monospaced))
-                            Text("conf \(format(Double(line.confidence))) | box \(formatBox(line.boundingBox))")
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                            Text("px \(formatPixelBox(line.boundingBox, imageSize: line.imageSize))")
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
             }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var debugModeBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: showDebugToggle ? "slider.horizontal.3" : "slider.horizontal.2.square")
+                .font(.caption.bold())
+            Text(debugBannerMessage)
+                .font(.subheadline.bold())
+        }
+        .foregroundStyle(colorScheme == .dark ? .white : .black)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+        .modifier(DebugModeBannerGlassStyle())
+        .shadow(color: .black.opacity(0.22), radius: 16, y: 8)
+        .accessibilityLabel(debugBannerMessage)
     }
 
     private var creditsView: some View {
@@ -592,6 +712,39 @@ private struct PickupCodeGlassCardStyle: ViewModifier {
                 .background(baseTint, in: shape)
                 .overlay(shape.stroke(strokeTint, lineWidth: 1))
                 .shadow(color: .black.opacity(colorScheme == .dark ? 0.20 : 0.08), radius: 18, y: 10)
+        }
+    }
+}
+
+private struct DebugModeBannerGlassStyle: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var shape: Capsule {
+        Capsule(style: .continuous)
+    }
+
+    private var fallbackFill: Color {
+        colorScheme == .dark ? .black.opacity(0.86) : .white.opacity(0.92)
+    }
+
+    private var glassTint: Color {
+        colorScheme == .dark ? .black.opacity(0.34) : .white.opacity(0.42)
+    }
+
+    private var strokeTint: Color {
+        colorScheme == .dark ? .white.opacity(0.18) : .white.opacity(0.72)
+    }
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .background(glassTint, in: shape)
+                .glassEffect(.regular.tint(glassTint), in: shape)
+                .overlay(shape.stroke(strokeTint, lineWidth: 1))
+        } else {
+            content
+                .background(fallbackFill, in: shape)
+                .overlay(shape.stroke(strokeTint, lineWidth: 1))
         }
     }
 }

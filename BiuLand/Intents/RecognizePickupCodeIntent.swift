@@ -49,16 +49,6 @@ struct RecognizePickupCodeIntent: LiveActivityIntent {
                 throw RecognizePickupCodeIntentError.noPickupCode(message)
             }
 
-            PickupCodeHistoryStore.add(
-                code: candidate.code,
-                context: candidate.reason,
-                icon: candidate.icon,
-                brandIconName: candidate.brandIconName,
-                brandName: candidate.brandName,
-                category: candidate.category,
-                confidence: candidate.score
-            )
-
             do {
                 try await LiveActivityManager.shared.upsert(
                     code: candidate.code,
@@ -72,6 +62,16 @@ struct RecognizePickupCodeIntent: LiveActivityIntent {
             } catch {
                 throw RecognizePickupCodeIntentError.liveActivityFailed("已识别取码 \(candidate.code)，但实时活动更新失败：\(failureMessage(for: error))")
             }
+
+            PickupCodeHistoryStore.saveCurrent(
+                code: candidate.code,
+                context: candidate.reason,
+                icon: candidate.icon,
+                brandIconName: candidate.brandIconName,
+                brandName: candidate.brandName,
+                category: candidate.category,
+                confidence: candidate.score
+            )
 
             return .result()
         } catch {
