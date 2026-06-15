@@ -13,6 +13,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		A1B2C3012FB0000100DFA28D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B3B00BA32FAB121E00DFA28D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B3B00BAA2FAB121E00DFA28D;
+			remoteInfo = BiuLand;
+		};
 		B3B00BE02FAB154C00DFA28D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B3B00BA32FAB121E00DFA28D /* Project object */;
@@ -37,6 +44,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1B2C3022FB0000100DFA28D /* BiuLandTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BiuLandTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3B00BAB2FAB121E00DFA28D /* BiuLand.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BiuLand.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3B00BCC2FAB154A00DFA28D /* LiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3B00BCE2FAB154A00DFA28D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
@@ -56,12 +64,18 @@
 			membershipExceptions = (
 				Shared/CompletePickupCodeIntent.swift,
 				Shared/PickupCodeActivityAttributes.swift,
+				Shared/PickupCodeDisplay.swift,
 			);
 			target = B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		A1B2C3032FB0000100DFA28D /* BiuLandTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BiuLandTests;
+			sourceTree = "<group>";
+		};
 		B3B00BAD2FAB121E00DFA28D /* BiuLand */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -81,6 +95,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		A1B2C3042FB0000100DFA28D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B3B00BA82FAB121E00DFA28D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -104,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				B3B00BAD2FAB121E00DFA28D /* BiuLand */,
+				A1B2C3032FB0000100DFA28D /* BiuLandTests */,
 				B3B00BD22FAB154A00DFA28D /* LiveActivity */,
 				B3B00BCD2FAB154A00DFA28D /* Frameworks */,
 				B3B00BAC2FAB121E00DFA28D /* Products */,
@@ -114,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				B3B00BAB2FAB121E00DFA28D /* BiuLand.app */,
+				A1B2C3022FB0000100DFA28D /* BiuLandTests.xctest */,
 				B3B00BCC2FAB154A00DFA28D /* LiveActivityExtension.appex */,
 			);
 			name = Products;
@@ -131,6 +154,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		A1B2C3052FB0000100DFA28D /* BiuLandTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1B2C3062FB0000100DFA28D /* Build configuration list for PBXNativeTarget "BiuLandTests" */;
+			buildPhases = (
+				A1B2C3072FB0000100DFA28D /* Sources */,
+				A1B2C3042FB0000100DFA28D /* Frameworks */,
+				A1B2C3082FB0000100DFA28D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1B2C3092FB0000100DFA28D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A1B2C3032FB0000100DFA28D /* BiuLandTests */,
+			);
+			name = BiuLandTests;
+			packageProductDependencies = (
+			);
+			productName = BiuLandTests;
+			productReference = A1B2C3022FB0000100DFA28D /* BiuLandTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		B3B00BAA2FAB121E00DFA28D /* BiuLand */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B3B00BB62FAB121F00DFA28D /* Build configuration list for PBXNativeTarget "BiuLand" */;
@@ -187,6 +233,10 @@
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					A1B2C3052FB0000100DFA28D = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = B3B00BAA2FAB121E00DFA28D;
+					};
 					B3B00BAA2FAB121E00DFA28D = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -210,12 +260,20 @@
 			projectRoot = "";
 			targets = (
 				B3B00BAA2FAB121E00DFA28D /* BiuLand */,
+				A1B2C3052FB0000100DFA28D /* BiuLandTests */,
 				B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A1B2C3082FB0000100DFA28D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B3B00BA92FAB121E00DFA28D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -233,6 +291,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A1B2C3072FB0000100DFA28D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B3B00BA72FAB121E00DFA28D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -250,6 +315,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A1B2C3092FB0000100DFA28D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B3B00BAA2FAB121E00DFA28D /* BiuLand */;
+			targetProxy = A1B2C3012FB0000100DFA28D /* PBXContainerItemProxy */;
+		};
 		B3B00BE12FAB154C00DFA28D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */;
@@ -258,6 +328,60 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		A1B2C30A2FB0000100DFA28D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 9BN22A9TB7;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.02;
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLandTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BiuLand.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BiuLand";
+			};
+			name = Debug;
+		};
+		A1B2C30B2FB0000100DFA28D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = 9BN22A9TB7;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.02;
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLandTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BiuLand.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/BiuLand";
+			};
+			name = Release;
+		};
 		B3B00BB42FAB121F00DFA28D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -538,6 +662,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A1B2C3062FB0000100DFA28D /* Build configuration list for PBXNativeTarget "BiuLandTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1B2C30A2FB0000100DFA28D /* Debug */,
+				A1B2C30B2FB0000100DFA28D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B3B00BA62FAB121E00DFA28D /* Build configuration list for PBXProject "BiuLand" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

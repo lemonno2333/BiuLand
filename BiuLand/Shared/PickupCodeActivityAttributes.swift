@@ -10,6 +10,7 @@ struct PickupCodeActivityAttributes: ActivityAttributes {
         var brandName: String?
         var category: String?
         var confidence: Double
+        var hasScreenshot: Bool
         var updatedAt: Date
     }
 

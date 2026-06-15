@@ -37,55 +37,6 @@ struct CodeExtractionDebugReport {
 }
 
 enum CodeExtractor {
-    nonisolated private static let strongKeywords = [
-        "取餐码", "取件码", "自提码", "提货码", "取货码", "提取码", "取码",
-        "取单号", "取餐号", "餐号", "取餐凭证", "凭取单号",
-        "取茶号", "茶号", "取饮品号", "饮品号",
-        "取单口令", "暗口令", "口令", "取餐口令",
-        "开柜码", "柜机码", "凭取件码", "取货凭证", "取件凭证", "PICKUPCODE"
-    ]
-
-    nonisolated private static let weakKeywords = [
-        "验证码", "校验码", "码", "PICKUP", "CODE"
-    ]
-
-    nonisolated private static let strongKeywordRegexes = [
-        #"取[餐茶件货貨单單饮飲品]?[餐茶件货貨单單饮飲品]?[号码碼碍]"#,
-        #"[餐茶件货貨单單饮飲品]?[餐茶件货貨单單饮飲品][号码碼碍]"#,
-        #"凭取[餐茶件货貨单單饮飲品]?[号码碼碍]"#,
-        #"取[餐茶件货貨单單饮飲品]?凭证"#,
-        #"PICKUPCODE"#
-    ]
-
-    nonisolated private static let negativeKeywords = [
-        "订单", "订单号", "单号", "尾号", "手机号", "电话", "金额", "合计", "支付",
-        "实付", "预计", "送达", "时间", "日期", "地址", "距离", "编号", "流水号",
-        "评价", "优惠", "元券", "满意", "不满意", "商品"
-    ]
-
-    nonisolated private static let negativeStrongKeywordContexts = [
-        "取单时间", "预计取单时间", "取餐时间", "预计取餐时间", "下单时间", "付款时间",
-        "取单地点", "取餐地点", "取件地点", "取餐方式", "取件方式", "取单方式",
-        "到店取餐", "到店取件", "门店地址", "联系地址"
-    ]
-
-    nonisolated private static let negativeStrongKeywordRegexes = [
-        #"取[餐茶件货单饮品]?[餐茶件货单饮品]?.{0,3}(时间|日期|地点|地址|方式)"#,
-        #"(下单|付款|支付|预计|送达).{0,4}(时间|日期)"#,
-        #"(门店|联系|收货|配送).{0,4}(地址|地点|方式)"#,
-        #"到店取[餐件货]"#
-    ]
-
-    nonisolated private static let codeRegexes = [
-        #"(?<![A-Z0-9])\d{1,3}[/-]\d{1,3}[/-]\d{3,6}(?![A-Z0-9])"#,
-        #"(?<![A-Z0-9])\d{1,2}[.。．、]\p{Han}[\p{Han}A-Z0-9]{1,19}(?![A-Z0-9])"#,
-        #"(?<![A-Z0-9])[A-Z]{1,3}\d{3,6}(?![A-Z0-9])"#,
-        #"(?<![A-Z0-9])\d{3,8}(?![A-Z0-9])"#,
-        #"(?<![A-Z0-9])\d{1,2}[A-Z]\d{0,2}(?![A-Z0-9])"#,
-        #"(?<![A-Z0-9])[A-Z]\d{2}(?![A-Z0-9])"#,
-        #"(?<![A-Z0-9])[A-Z0-9]{4,10}(?![A-Z0-9])"#
-    ]
-
     nonisolated static func bestCode(from lines: [String]) -> CodeCandidate? {
         let recognizedLines = lines.map {
             RecognizedTextLine(text: $0, confidence: 1, boundingBox: .zero, imageSize: .zero)
@@ -109,7 +60,7 @@ enum CodeExtractor {
         for (index, normalizedLine) in normalizedLines.enumerated() {
             let context = context(around: index, in: normalizedLines)
             let visualLine = visualLines[index]
-            for regex in codeRegexes {
+            for regex in CodeExtractionRules.codeRegexes {
                 for token in matches(regex: regex, in: normalizedLine) {
                     let fixedToken = normalizeExtractedCode(
                         normalizeLikelyOCRConfusions(in: token, context: context)
@@ -178,7 +129,7 @@ enum CodeExtractor {
     }
 
     nonisolated private static func normalize(_ text: String) -> String {
-        text
+        applyTextCorrections(to: text)
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "　", with: "")
             .replacingOccurrences(of: "-", with: "/")
@@ -193,6 +144,12 @@ enum CodeExtractor {
             .replacingOccurrences(of: "憑", with: "凭")
             .replacingOccurrences(of: "碍", with: "码")
             .uppercased()
+    }
+
+    nonisolated private static func applyTextCorrections(to text: String) -> String {
+        CodeExtractionRules.textCorrections.reduce(text) { result, correction in
+            result.replacingOccurrences(of: correction.0, with: correction.1)
+        }
     }
 
     nonisolated private static func matches(regex: String, in text: String) -> [String] {
@@ -254,6 +211,8 @@ enum CodeExtractor {
     ) -> String? {
         guard lines.isEmpty == false else { return nil }
         var candidates: [(text: String, score: Double)] = []
+        let documentText = normalizedLines.joined(separator: "|")
+        candidates.append(contentsOf: documentPickupLocationCandidates(in: documentText, category: category))
 
         for index in lines.indices {
             let normalizedLine = normalizedLines[index]
@@ -297,12 +256,7 @@ enum CodeExtractor {
 
     nonisolated private static func inlinePickupLocation(fromRaw rawText: String, normalized: String) -> String? {
         let raw = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let labels = [
-            "取餐地点", "取件地点", "取货地点", "提货地点", "自提地点", "取餐地址", "取件地址", "取货地址",
-            "提货地址", "自提地址", "门店地址", "店铺地址", "取件点", "自提点", "门店", "驿站", "柜机"
-        ]
-
-        for label in labels where normalized.contains(normalize(label)) {
+        for label in CodeExtractionRules.locationLabels where normalized.contains(normalize(label)) {
             let variants = [label, "\(label):", "\(label)："]
             for variant in variants {
                 if let range = raw.range(of: variant) {
@@ -318,12 +272,45 @@ enum CodeExtractor {
         return nil
     }
 
-    nonisolated private static func lineLooksLikeLocationLabel(_ line: String) -> Bool {
-        let labels = [
-            "取餐地点", "取件地点", "取货地点", "提货地点", "自提地点", "取餐地址", "取件地址", "取货地址",
-            "提货地址", "自提地址", "门店地址", "店铺地址", "取件点", "自提点"
+    nonisolated private static func documentPickupLocationCandidates(
+        in documentText: String,
+        category: PickupCategory
+    ) -> [(text: String, score: Double)] {
+        let starts = regexAlternation(CodeExtractionRules.locationStartKeywords.map(normalize))
+        let targets = regexAlternation(CodeExtractionRules.locationTargetKeywords.map(normalize))
+        let stops = regexAlternation(CodeExtractionRules.locationStopKeywords.map(normalize))
+
+        var candidates: [(text: String, score: Double)] = []
+        let addressRegexes = [
+            #"地址[:：]?([^|,，。！!?？；;]{4,60})"#,
+            #"(\p{Han}{1,8}(?:超市|便利店|商店|小卖部|驿站|服务站))"#
         ]
-        return labels.contains { line.contains(normalize($0)) }
+
+        for regex in addressRegexes {
+            candidates.append(contentsOf: capturedMatches(regex: regex, in: documentText).map {
+                ($0, 0.74 + locationKeywordScore($0, category: category))
+            })
+        }
+
+        if starts.isEmpty == false && targets.isEmpty == false {
+            let startToTargetRegex = #"(?:\#(starts))([^|,，。！!?？；;]{2,60}?(?:\#(targets)))"#
+            candidates.append(contentsOf: capturedMatches(regex: startToTargetRegex, in: documentText).map {
+                ($0, 0.82 + locationKeywordScore($0, category: category))
+            })
+        }
+
+        if starts.isEmpty == false && stops.isEmpty == false {
+            let startToStopRegex = #"(?:\#(starts))([^|,，。！!?？；;]{2,60}?)(?=(?:\#(stops))|[|,，。！!?？；;])"#
+            candidates.append(contentsOf: capturedMatches(regex: startToStopRegex, in: documentText).map {
+                ($0, 0.68 + locationKeywordScore($0, category: category))
+            })
+        }
+
+        return candidates.filter { isPlausiblePickupLocation(normalize($0.text)) }
+    }
+
+    nonisolated private static func lineLooksLikeLocationLabel(_ line: String) -> Bool {
+        CodeExtractionRules.locationNeighborLabels.contains { line.contains(normalize($0)) }
     }
 
     nonisolated private static func isPlausiblePickupLocation(_ line: String) -> Bool {
@@ -332,17 +319,8 @@ enum CodeExtractor {
         if matches(regex: #"\d{4}[年./]\d{1,2}[月./]\d{1,2}"#, in: line).isEmpty == false { return false }
         if matches(regex: #"\d{1,2}[:：]\d{2}"#, in: line).isEmpty == false { return false }
 
-        let rejectKeywords = [
-            "取餐码", "取件码", "取货码", "提货码", "订单", "付款", "支付", "时间", "日期", "电话", "手机号",
-            "金额", "实付", "合计", "商品明细", "问题反馈", "优惠", "评价", "已完成", "制作中", "请凭"
-        ]
-        if rejectKeywords.contains(where: { line.contains($0) }) { return false }
-
-        let locationKeywords = [
-            "店", "门店", "地址", "楼", "层", "号", "室", "路", "街", "道", "广场", "中心", "商场", "大厦",
-            "驿站", "菜鸟", "丰巢", "柜", "柜机", "货架", "取件点", "自提点", "大学", "园区", "小区"
-        ]
-        return locationKeywords.contains { line.contains($0) }
+        if CodeExtractionRules.locationRejectKeywords.contains(where: { line.contains($0) }) { return false }
+        return CodeExtractionRules.locationKeywords.contains { line.contains($0) }
     }
 
     nonisolated private static func cleanPickupLocation(_ text: String) -> String {
@@ -366,14 +344,27 @@ enum CodeExtractor {
             .replacingOccurrences(of: ":", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let separators = ["距离", "电话", "营业时间", "导航", "复制", "查看地图"]
-        for separator in separators {
+        for separator in CodeExtractionRules.locationSeparators {
             if let range = cleaned.range(of: separator) {
                 cleaned = String(cleaned[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }
 
-        return cleaned
+        for starter in CodeExtractionRules.locationStartKeywords {
+            guard let range = cleaned.range(of: starter), range.upperBound < cleaned.endIndex else { continue }
+            cleaned = String(cleaned[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            break
+        }
+
+        if cleaned.count > 12 {
+            for marker in CodeExtractionRules.locationPrefixMarkers {
+                guard let range = cleaned.range(of: marker), range.lowerBound > cleaned.startIndex else { continue }
+                cleaned = String(cleaned[range.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+                break
+            }
+        }
+
+        return cleaned.replacingOccurrences(of: "|", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     nonisolated private static func locationKeywordScore(_ line: String, category: PickupCategory) -> Double {
@@ -381,7 +372,10 @@ enum CodeExtractor {
         if line.contains("地址") || line.contains("地点") { score += 0.22 }
         if line.contains("门店") || line.contains("店") { score += 0.16 }
         if line.contains("取件点") || line.contains("自提点") { score += 0.22 }
-        if line.contains("驿站") || line.contains("丰巢") || line.contains("菜鸟") || line.contains("柜机") {
+        if line.contains("超市") || line.contains("便利店") || line.contains("商店") || line.contains("小卖部") {
+            score += category == .express ? 0.28 : 0.12
+        }
+        if line.contains("驿站") || line.contains("服务站") || line.contains("丰巢") || line.contains("菜鸟") || line.contains("柜机") || line.contains("快递柜") {
             score += category == .express ? 0.3 : 0.16
         }
         return score
@@ -414,10 +408,14 @@ enum CodeExtractor {
     }
 
     nonisolated private static func normalizeExtractedCode(_ token: String) -> String {
-        if looksLikeExpressPickupCode(token) {
-            return token.replacingOccurrences(of: "/", with: "-")
+        var cleaned = token
+        if cleaned.hasPrefix("#") {
+            cleaned.removeFirst()
         }
-        return token
+        if looksLikeExpressPickupCode(cleaned) {
+            return cleaned.replacingOccurrences(of: "/", with: "-")
+        }
+        return cleaned
     }
 
     nonisolated private static func score(
@@ -443,6 +441,8 @@ enum CodeExtractor {
             score += 0.36
         }
         if looksLikePhraseCode(code) { score += 0.28 }
+        if looksLikeQueueCode(code, context: context) { score += 0.34 }
+        if line.contains("#\(code)") { score += 0.28 }
         if strongLine { score += 0.42 }
         if !strongLine { score += spatialKeywordBoost }
         if contextHasWeakKeyword(context) { score += 0.12 }
@@ -456,9 +456,9 @@ enum CodeExtractor {
             score += 0.1
         }
 
-        if negativeKeywords.contains(where: { line.contains($0) }) { score -= 0.18 }
-        if negativeKeywords.contains(where: { visualLine.contains($0) }) { score -= 0.08 }
-        if negativeKeywords.contains(where: { context.contains($0) }) { score -= 0.08 }
+        if CodeExtractionRules.negativeKeywords.contains(where: { line.contains($0) }) { score -= 0.18 }
+        if CodeExtractionRules.negativeKeywords.contains(where: { visualLine.contains($0) }) { score -= 0.08 }
+        if CodeExtractionRules.negativeKeywords.contains(where: { context.contains($0) }) { score -= 0.08 }
         if hasNegativeStrongKeywordContext(in: line) { score -= 0.45 }
         if negativeVisualLine { score -= 0.45 }
         if hasNegativeStrongKeywordContext(in: context) { score -= 0.16 }
@@ -468,10 +468,12 @@ enum CodeExtractor {
         }
         if looksLikeCouponPhrase(code, line: line) { score -= 0.6 }
         if looksLikeProductSpec(code, line: line) { score -= 0.35 }
+        if looksLikeFoodDistraction(code, line: line) { score -= 0.32 }
         if looksLikeStatusBarCode(code, line: line) { score -= 0.45 }
         if looksLikeDateOrTime(code, line: line) { score -= 0.3 }
         if looksLikeDateOrTimeFragment(code: code, line: line, visualLine: visualLine) { score -= 0.42 }
         if looksLikePhoneOrOrderNumber(code, line: line) { score -= 0.25 }
+        if looksLikePhoneTail(code: code, line: line, context: context) { score -= 0.65 }
         if code.hasPrefix("20") && code.count >= 6 { score -= 0.2 }
         if line.contains("¥") || line.contains("￥") { score -= 0.2 }
 
@@ -569,6 +571,9 @@ enum CodeExtractor {
         if keywordAppearsNear(code: token, in: line) {
             return "关键词旁码"
         }
+        if looksLikeQueueCode(token, context: context) {
+            return "排队取号"
+        }
         if looksLikeExpressPickupCode(token) {
             return "快递取件码"
         }
@@ -590,28 +595,17 @@ enum CodeExtractor {
     }
 
     nonisolated private static func contextHasWeakKeyword(_ context: String) -> Bool {
-        weakKeywords.contains { context.contains($0) }
+        CodeExtractionRules.weakKeywords.contains { context.contains($0) }
     }
 
     nonisolated private static func iconForPickupContext(_ text: String) -> String {
-        let packageKeywords = [
-            "取件", "快递", "包裹", "开柜", "柜机", "驿站", "菜鸟", "丰巢", "取货", "提货", "取货凭证", "取件凭证"
-        ]
-        let drinkKeywords = [
-            "饮品", "取茶", "茶号", "奶茶", "咖啡", "星巴克", "瑞幸", "库迪", "喜茶", "奈雪", "霸王茶姬",
-            "茶百道", "古茗", "蜜雪", "拿铁", "美式", "冰饮", "热饮"
-        ]
-        let foodKeywords = [
-            "取餐", "餐品", "餐号", "外卖", "美团", "饿了么", "汉堡", "炸鸡", "披萨", "饭", "面", "粉", "粥"
-        ]
-
-        if packageKeywords.contains(where: { text.contains($0) }) {
+        if CodeExtractionRules.packageKeywords.contains(where: { text.contains($0) }) {
             return "shippingbox.fill"
         }
-        if drinkKeywords.contains(where: { text.contains($0) }) {
+        if CodeExtractionRules.drinkKeywords.contains(where: { text.contains($0) }) {
             return "cup.and.saucer.fill"
         }
-        if foodKeywords.contains(where: { text.contains($0) }) {
+        if CodeExtractionRules.foodKeywords.contains(where: { text.contains($0) }) {
             return "fork.knife"
         }
         return "fork.knife"
@@ -627,19 +621,19 @@ enum CodeExtractor {
         if hasNegativeStrongKeywordContext(in: text) {
             return false
         }
-        if strongKeywords.contains(where: { text.contains($0) }) {
+        if CodeExtractionRules.strongKeywords.contains(where: { text.contains($0) }) {
             return true
         }
-        return strongKeywordRegexes.contains { regex in
+        return CodeExtractionRules.strongKeywordRegexes.contains { regex in
             matches(regex: regex, in: text).isEmpty == false
         }
     }
 
     nonisolated private static func hasNegativeStrongKeywordContext(in text: String) -> Bool {
-        if negativeStrongKeywordContexts.contains(where: { text.contains($0) }) {
+        if CodeExtractionRules.negativeStrongKeywordContexts.contains(where: { text.contains($0) }) {
             return true
         }
-        return negativeStrongKeywordRegexes.contains { regex in
+        return CodeExtractionRules.negativeStrongKeywordRegexes.contains { regex in
             matches(regex: regex, in: text).isEmpty == false
         }
     }
@@ -668,10 +662,22 @@ enum CodeExtractor {
 
     nonisolated private static func looksLikePhraseCode(_ code: String) -> Bool {
         matches(regex: #"^\d{1,2}[.。．、]\p{Han}[\p{Han}A-Z0-9]{1,19}$"#, in: code).contains(code)
+            || matches(regex: #"^[A-Z][A-Z0-9]{2,9}[.。．]\p{Han}[\p{Han}A-Z0-9]{1,23}$"#, in: code).contains(code)
     }
 
     nonisolated private static func looksLikeExpressPickupCode(_ code: String) -> Bool {
         matches(regex: #"^\d{1,3}[/-]\d{1,3}[/-]\d{3,6}$"#, in: code).isEmpty == false
+            || matches(regex: #"^[A-Z0-9]{1,4}[/-][A-Z0-9]{1,4}[/-][A-Z0-9]{2,8}$"#, in: code).isEmpty == false
+            || matches(regex: #"^[A-Z]{1,4}\d{0,3}[/-]\d{3,8}$"#, in: code).isEmpty == false
+    }
+
+    nonisolated private static func looksLikeQueueCode(_ code: String, context: String) -> Bool {
+        let queueKeywordCount = CodeExtractionRules.queueKeywords.reduce(0) { count, keyword in
+            context.contains(keyword) ? count + 1 : count
+        }
+        guard queueKeywordCount >= 2 else { return false }
+        return matches(regex: #"^[A-Z]{1,2}\d{1,3}$"#, in: code).contains(code)
+            || matches(regex: #"^\d{3,4}$"#, in: code).contains(code)
     }
 
     nonisolated private static func looksLikeCouponPhrase(_ code: String, line: String) -> Bool {
@@ -685,6 +691,12 @@ enum CodeExtractor {
             return upperCode.contains("OZ") || upperCode.contains("ML") || upperCode.rangeOfCharacter(from: .letters) != nil
         }
         return false
+    }
+
+    nonisolated private static func looksLikeFoodDistraction(_ code: String, line: String) -> Bool {
+        guard CodeExtractionRules.foodDistractionKeywords.contains(where: { line.contains($0) }) else { return false }
+        if code.allSatisfy(\.isNumber) && code.count <= 3 { return true }
+        return looksLikeProductSpec(code, line: line)
     }
 
     nonisolated private static func looksLikeStatusBarCode(_ code: String, line: String) -> Bool {
@@ -704,5 +716,30 @@ enum CodeExtractor {
             return true
         }
         return false
+    }
+
+    nonisolated private static func looksLikePhoneTail(code: String, line: String, context: String) -> Bool {
+        guard code.allSatisfy(\.isNumber), code.count == 4 else { return false }
+        let text = line + "|" + context
+        if CodeExtractionRules.phoneTailKeywords.contains(where: { text.contains($0) }) {
+            return true
+        }
+        return line.contains("**\(code)") || line.contains("****\(code)")
+    }
+
+    nonisolated private static func capturedMatches(regex: String, in text: String, group: Int = 1) -> [String] {
+        guard let expression = try? NSRegularExpression(pattern: regex) else { return [] }
+        let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
+        return expression.matches(in: text, options: [], range: fullRange).compactMap { match in
+            guard match.numberOfRanges > group, let range = Range(match.range(at: group), in: text) else { return nil }
+            return String(text[range])
+        }
+    }
+
+    nonisolated private static func regexAlternation(_ terms: [String]) -> String {
+        terms
+            .filter { $0.isEmpty == false }
+            .map { NSRegularExpression.escapedPattern(for: $0) }
+            .joined(separator: "|")
     }
 }

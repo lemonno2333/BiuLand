@@ -9,6 +9,9 @@ xcuserdata/
 
 *.moved-aside
 *.xccheckout
+*.bak
+*.bak*
+*.backup*
 
 Pods/
 .build/

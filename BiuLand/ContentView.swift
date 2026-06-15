@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var currentBrandIconName: String?
     @State private var currentReason = "等待识别"
     @State private var currentBrandName: String?
+    @State private var currentExpiresAt: Date?
     @State private var historyItems = PickupCodeHistoryStore.load()
     @State private var recognizedLines: [RecognizedTextLine] = []
     @State private var debugReport: CodeExtractionDebugReport?
@@ -22,9 +23,17 @@ struct ContentView: View {
     @State private var debugBannerMessage = ""
     @State private var currentExpirationTask: Task<Void, Never>?
     @State private var liveActivityMonitorTask: Task<Void, Never>?
-    @State private var showManualAdd = false
-    @State private var manualCode = ""
-    @State private var manualIcon = "fork.knife"
+    @State private var showCodeEditor = false
+    @State private var codeEditorMode: CodeEditorMode = .add
+    @State private var editorCode = ""
+    @State private var editorContext = ""
+    @State private var editorIcon = "fork.knife"
+    @State private var showScreenshotViewer = false
+    @State private var screenshotImage: UIImage?
+    @State private var screenshotMetadata: ScreenshotMetadata?
+    @State private var lastProcessedImageData: Data?
+    @State private var revealedHistoryItemID: UUID?
+    @State private var historyRowDragOffsets: [UUID: CGFloat] = [:]
 
     var body: some View {
         NavigationStack {
@@ -53,6 +62,12 @@ struct ContentView: View {
                     .animation(.spring(response: 0.32, dampingFraction: 0.82), value: showDebugBanner)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenScreenshotViewer"))) { _ in
+                // 从 Live Activity 打开截图查看器
+                if ScreenshotManager.shared.currentScreenshotExists() {
+                    showScreenshotViewer = true
+                }
+            }
             .navigationTitle(showDebugBanner ? "" : "BiuLand")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
@@ -78,15 +93,18 @@ struct ContentView: View {
                     .accessibilityLabel("从相册选择截图")
 
                     Button {
-                        showManualAdd = true
+                        presentAddEditor()
                     } label: {
                         Image(systemName: "plus")
                     }
                     .accessibilityLabel("手动添加取码")
                 }
             }
-            .sheet(isPresented: $showManualAdd) {
-                manualAddSheet
+            .sheet(isPresented: $showCodeEditor) {
+                codeEditorSheet
+            }
+            .sheet(isPresented: $showScreenshotViewer) {
+                screenshotViewerSheet
             }
         }
     }
@@ -96,6 +114,11 @@ struct ContentView: View {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 await MainActor.run { resultText = "无法读取图片数据。" }
                 return
+            }
+
+            // 保存图片数据供后续使用
+            await MainActor.run {
+                lastProcessedImageData = data
             }
             let lines = try await OCRService.shared.recognizeTextLines(from: data)
             let report = CodeExtractor.debugReport(from: lines)
@@ -110,27 +133,20 @@ struct ContentView: View {
                     currentBrandName = nil
                     recognizedLines = lines
                     debugReport = report
+                    lastProcessedImageData = nil
                 }
                 return
             }
 
-            try await LiveActivityManager.shared.upsert(
+            let current = try await LiveActivityManager.shared.upsert(
                 code: candidate.code,
                 context: candidate.reason,
                 icon: candidate.icon,
                 brandIconName: candidate.brandIconName,
                 brandName: candidate.brandName,
                 category: candidate.category,
-                confidence: candidate.score
-            )
-            let current = PickupCodeHistoryStore.saveCurrent(
-                code: candidate.code,
-                context: candidate.reason,
-                icon: candidate.icon,
-                brandIconName: candidate.brandIconName,
-                brandName: candidate.brandName,
-                category: candidate.category,
-                confidence: candidate.score
+                confidence: candidate.score,
+                imageData: data
             )
 
             await MainActor.run {
@@ -159,6 +175,7 @@ struct ContentView: View {
             title: currentBrandName ?? "当前取码",
             code: parsedCode,
             context: currentReason,
+            expiresAt: currentExpiresAt,
             date: nil,
             isPlaceholder: parsedCode == "-"
         )
@@ -191,6 +208,7 @@ struct ContentView: View {
         currentBrandIconName = current.brandIconName
         currentReason = current.context
         currentBrandName = current.brandName
+        currentExpiresAt = current.expiresAt
         scheduleCurrentExpiration(for: current)
         scheduleLiveActivityCompletionMonitor()
     }
@@ -205,6 +223,7 @@ struct ContentView: View {
         currentBrandIconName = nil
         currentReason = "等待识别"
         currentBrandName = nil
+        currentExpiresAt = nil
     }
 
     private func scheduleCurrentExpiration(for current: CurrentPickupCodeItem) {
@@ -234,7 +253,7 @@ struct ContentView: View {
                 guard Task.isCancelled == false else { return }
                 guard PickupCodeHistoryStore.loadCurrent() != nil else { return }
 
-                if await LiveActivityManager.shared.hasActiveActivities == false {
+                if LiveActivityManager.shared.hasActiveActivities == false {
                     await MainActor.run {
                         historyItems = PickupCodeHistoryStore.completeCurrent()
                         resetCurrentSnapshot()
@@ -300,15 +319,7 @@ struct ContentView: View {
             } else {
                 VStack(spacing: 10) {
                     ForEach(historyItems) { item in
-                        liveActivitySnapshot(
-                            icon: item.icon,
-                            brandIconName: item.brandIconName,
-                            title: item.brandName ?? "历史取码",
-                            code: item.code,
-                            context: item.context,
-                            date: item.createdAt,
-                            isPlaceholder: false
-                        )
+                        historyRow(for: item)
                     }
                 }
             }
@@ -316,17 +327,23 @@ struct ContentView: View {
         .padding(.top, 4)
     }
 
-    private var manualAddSheet: some View {
+    private var codeEditorSheet: some View {
         NavigationStack {
             Form {
                 Section("取码") {
-                    TextField("输入取餐码/取件码", text: $manualCode)
+                    TextField("输入取餐码/取件码", text: $editorCode)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                 }
 
+                Section("备注") {
+                    TextField("例如门店、柜机或取餐位置", text: $editorContext)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                }
+
                 Section("类型") {
-                    Picker("类型", selection: $manualIcon) {
+                    Picker("类型", selection: $editorIcon) {
                         Label("食物", systemImage: "fork.knife")
                             .tag("fork.knife")
                         Label("饮品", systemImage: "cup.and.saucer.fill")
@@ -337,21 +354,21 @@ struct ContentView: View {
                     .pickerStyle(.segmented)
                 }
             }
-            .navigationTitle("手动添加")
+            .navigationTitle(codeEditorMode.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
-                        showManualAdd = false
+                        showCodeEditor = false
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") {
+                    Button(codeEditorMode.confirmationTitle) {
                         Task {
-                            await handleManualAdd()
+                            await handleCodeEditorSave()
                         }
                     }
-                    .disabled(trimmedManualCode.isEmpty)
+                    .disabled(trimmedEditorCode.isEmpty)
                 }
             }
         }
@@ -364,20 +381,34 @@ struct ContentView: View {
         title: String,
         code: String,
         context: String,
+        expiresAt: Date?,
         date: Date?,
         isPlaceholder: Bool
     ) -> some View {
-        let visibleContext = visiblePickupContext(context)
+        let display = PickupCodeDisplayModel(
+            icon: icon,
+            brandIconName: brandIconName,
+            title: title,
+            code: code,
+            context: context,
+            isPlaceholder: isPlaceholder
+        )
 
         ZStack(alignment: .bottomTrailing) {
             HStack(spacing: 16) {
-                snapshotIcon(icon, brandIconName: brandIconName)
+                PickupCodeIconView(
+                    icon: display.icon,
+                    brandIconName: display.brandIconName,
+                    size: 58,
+                    systemColor: snapshotPrimaryColor,
+                    brandShadowColor: .black.opacity(colorScheme == .dark ? 0.26 : 0.10)
+                )
                     .frame(width: 58, height: 58)
                     .frame(maxHeight: .infinity, alignment: .center)
 
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 8) {
-                        Text(title)
+                        Text(display.title)
                             .font(.caption)
                             .foregroundStyle(snapshotSecondaryColor)
                         Spacer(minLength: 8)
@@ -385,35 +416,36 @@ struct ContentView: View {
                             Text(formatDate(date))
                                 .font(.caption2)
                                 .foregroundStyle(snapshotTertiaryColor)
+                        } else if let expiresAt, !isPlaceholder {
+                            expirationBadge(expiresAt: expiresAt)
                         }
                     }
 
-                    Text(isPlaceholder ? "----" : code)
-                        .font(.system(size: 34, weight: .heavy, design: .rounded))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.45)
-                        .foregroundStyle(snapshotPrimaryColor)
+                    PickupCodeTextBlock(
+                        model: display,
+                        codeSize: 34,
+                        titleColor: snapshotSecondaryColor,
+                        codeColor: snapshotPrimaryColor,
+                        contextColor: snapshotSecondaryColor,
+                        contextFont: .caption,
+                        contextScale: 0.75,
+                        spacing: 5,
+                        showsTitle: false
+                    )
 
-                    if !isPlaceholder && visibleContext.isEmpty == false {
-                        Text(visibleContext)
-                            .font(.caption)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.75)
-                            .foregroundStyle(snapshotSecondaryColor)
-                    }
-
-                    if !isPlaceholder && code.count > 4 && date == nil {
-                        HStack {
+                    // 按钮区域 - 始终在最下方，单独一行
+                    if display.isPlaceholder == false && date == nil {
+                        HStack(spacing: 10) {
                             Spacer()
+                            editCurrentButton
+                            if ScreenshotManager.shared.currentScreenshotExists() {
+                                screenshotButton
+                            }
                             localCompletionButton(icon: icon)
                         }
                         .padding(.top, 6)
                     }
                 }
-            }
-
-            if !isPlaceholder && code.count <= 4 && date == nil {
-                localCompletionButton(icon: icon)
             }
         }
         .padding(16)
@@ -423,7 +455,11 @@ struct ContentView: View {
 
     @ViewBuilder
     private func localCompletionButton(icon: String) -> some View {
-        let button = Button {
+        compactSnapshotAction(
+            systemImage: "checkmark.circle.fill",
+            accessibilityLabel: PickupCodeDisplayModel.completionTitle(for: icon),
+            isPrimary: true
+        ) {
             Task {
                 let updatedHistory = PickupCodeHistoryStore.completeCurrent()
                 await LiveActivityManager.shared.endAll()
@@ -433,27 +469,167 @@ struct ContentView: View {
                     resultText = "已完成，已归档到历史。"
                 }
             }
-        } label: {
-            Label(completionTitle(for: icon), systemImage: "checkmark.circle.fill")
-                .font(.caption.bold())
-                .labelStyle(.titleAndIcon)
-        }
-
-        if #available(iOS 26.0, *) {
-            button
-                .buttonStyle(.glassProminent)
-                .tint(snapshotButtonTint)
-                .foregroundStyle(snapshotPrimaryColor)
-        } else {
-            button
-                .buttonStyle(.bordered)
-                .tint(snapshotButtonTint)
-                .foregroundStyle(snapshotPrimaryColor)
         }
     }
 
-    private func completionTitle(for icon: String) -> String {
-        icon == "shippingbox.fill" ? "已经取件" : "已经取餐"
+    @ViewBuilder
+    private var editCurrentButton: some View {
+        compactSnapshotAction(systemImage: "pencil", accessibilityLabel: "编辑") {
+            presentCurrentEditor()
+        }
+    }
+
+    private func compactSnapshotAction(
+        systemImage: String,
+        accessibilityLabel: String,
+        isPrimary: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        let fill = isPrimary ? Color.accentColor.opacity(colorScheme == .dark ? 0.38 : 0.24) : snapshotButtonTint
+        let foreground = isPrimary ? Color.accentColor : snapshotPrimaryColor
+
+        return Button(action: action) {
+            Image(systemName: systemImage)
+                .symbolRenderingMode(.hierarchical)
+                .font(.system(size: 17, weight: .semibold))
+                .frame(width: 42, height: 42)
+                .foregroundStyle(foreground)
+                .background(fill, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    @ViewBuilder
+    private func historyRow(for item: PickupCodeHistoryItem) -> some View {
+        let actionWidth: CGFloat = 84
+        let baseOffset = revealedHistoryItemID == item.id ? -actionWidth : 0
+        let dragOffset = historyRowDragOffsets[item.id, default: 0]
+        let horizontalOffset = min(0, max(-actionWidth, baseOffset + dragOffset))
+        let revealWidth = -horizontalOffset
+        let revealProgress = min(1, revealWidth / actionWidth)
+
+        ZStack(alignment: .trailing) {
+            liveActivitySnapshot(
+                icon: item.icon,
+                brandIconName: item.brandIconName,
+                title: item.brandName ?? "历史取码",
+                code: item.code,
+                context: item.context,
+                expiresAt: nil,
+                date: item.createdAt,
+                isPlaceholder: false
+            )
+            .offset(x: horizontalOffset)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if revealedHistoryItemID == item.id {
+                    closeHistorySwipeActions()
+                }
+            }
+            .gesture(historyRowDragGesture(for: item, actionWidth: actionWidth))
+            .animation(.spring(response: 0.28, dampingFraction: 0.86), value: revealedHistoryItemID)
+            .animation(.spring(response: 0.28, dampingFraction: 0.86), value: historyRowDragOffsets[item.id, default: 0])
+
+            if revealWidth > 0 {
+                restoreHistorySwipeAction(for: item, actionWidth: actionWidth)
+                    .frame(width: actionWidth)
+                    .opacity(revealProgress)
+                    .scaleEffect(0.86 + 0.14 * revealProgress)
+                    .mask(alignment: .trailing) {
+                        Rectangle()
+                            .frame(width: revealWidth)
+                    }
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func restoreHistorySwipeAction(for item: PickupCodeHistoryItem, actionWidth: CGFloat) -> some View {
+        Button {
+            closeHistorySwipeActions()
+            Task {
+                await restoreHistoryItem(item)
+            }
+        } label: {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 23, weight: .semibold))
+                .frame(width: 58, height: 58)
+                .foregroundStyle(.white)
+                .background(Color.accentColor, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .frame(width: actionWidth, alignment: .trailing)
+        .frame(maxHeight: .infinity)
+        .padding(.trailing, 2)
+        .accessibilityLabel("重新显示")
+    }
+
+    private func historyRowDragGesture(for item: PickupCodeHistoryItem, actionWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                if revealedHistoryItemID != item.id && value.translation.width < 0 {
+                    revealedHistoryItemID = nil
+                }
+                historyRowDragOffsets[item.id] = value.translation.width
+            }
+            .onEnded { value in
+                defer {
+                    historyRowDragOffsets[item.id] = nil
+                }
+
+                let shouldReveal = value.translation.width < -44 || value.predictedEndTranslation.width < -actionWidth * 0.8
+                let shouldHide = value.translation.width > 32 || value.predictedEndTranslation.width > actionWidth * 0.45
+
+                if shouldReveal {
+                    revealedHistoryItemID = item.id
+                } else if shouldHide {
+                    closeHistorySwipeActions()
+                } else if revealedHistoryItemID != item.id {
+                    closeHistorySwipeActions()
+                }
+            }
+    }
+
+    private func closeHistorySwipeActions() {
+        revealedHistoryItemID = nil
+        historyRowDragOffsets.removeAll()
+    }
+
+    private func restoreHistoryItem(_ item: PickupCodeHistoryItem) async {
+        do {
+            let current = try await LiveActivityManager.shared.upsert(
+                code: item.code,
+                context: item.context,
+                icon: item.icon,
+                brandIconName: item.brandIconName,
+                brandName: item.brandName,
+                category: item.category,
+                confidence: item.confidence
+            )
+
+            await MainActor.run {
+                applyCurrent(current)
+                historyItems = PickupCodeHistoryStore.load()
+                resultText = "已重新显示历史取码。"
+            }
+        } catch {
+            await MainActor.run {
+                resultText = "重新显示失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func category(for icon: String) -> PickupCategory {
+        switch icon {
+        case "cup.and.saucer.fill":
+            return .drink
+        case "shippingbox.fill":
+            return .express
+        default:
+            return .food
+        }
     }
 
     private var snapshotPrimaryColor: Color {
@@ -472,39 +648,62 @@ struct ContentView: View {
         colorScheme == .dark ? .white.opacity(0.18) : .black.opacity(0.08)
     }
 
-    private var trimmedManualCode: String {
-        manualCode.trimmingCharacters(in: .whitespacesAndNewlines)
+    private var trimmedEditorCode: String {
+        editorCode.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func handleManualAdd() async {
-        let code = trimmedManualCode
+    private var trimmedEditorContext: String {
+        editorContext.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func presentAddEditor() {
+        codeEditorMode = .add
+        editorCode = ""
+        editorContext = ""
+        editorIcon = "fork.knife"
+        showCodeEditor = true
+    }
+
+    private func presentCurrentEditor() {
+        guard parsedCode != "-" else { return }
+        codeEditorMode = .editCurrent
+        editorCode = parsedCode
+        editorContext = PickupCodeDisplayModel.visibleContext(for: currentReason).isEmpty ? "" : currentReason
+        editorIcon = currentIcon
+        showCodeEditor = true
+    }
+
+    private func handleCodeEditorSave() async {
+        let code = trimmedEditorCode
         guard code.isEmpty == false else { return }
-        let reason = "手动添加"
+        let reason = trimmedEditorContext.isEmpty ? codeEditorMode.defaultContext : trimmedEditorContext
+        let category = category(for: editorIcon)
+        let shouldPreserveBrand = codeEditorMode == .editCurrent && editorIcon == currentIcon
+        let shouldPreserveScreenshot = codeEditorMode == .editCurrent && ScreenshotManager.shared.currentScreenshotExists()
 
         do {
-            try await LiveActivityManager.shared.upsert(
+            let current = try await LiveActivityManager.shared.upsert(
                 code: code,
                 context: reason,
-                icon: manualIcon,
-                confidence: 1
-            )
-            let current = PickupCodeHistoryStore.saveCurrent(
-                code: code,
-                context: reason,
-                icon: manualIcon,
-                confidence: 1
+                icon: editorIcon,
+                brandIconName: shouldPreserveBrand ? currentBrandIconName : nil,
+                brandName: shouldPreserveBrand ? currentBrandName : nil,
+                category: category,
+                confidence: 1,
+                preserveExistingScreenshot: shouldPreserveScreenshot
             )
 
             await MainActor.run {
                 applyCurrent(current)
-                resultText = "已手动添加，已更新实时活动。"
+                resultText = codeEditorMode.successMessage
                 historyItems = PickupCodeHistoryStore.load()
-                manualCode = ""
-                showManualAdd = false
+                editorCode = ""
+                editorContext = ""
+                showCodeEditor = false
             }
         } catch {
             await MainActor.run {
-                resultText = "手动添加失败：\(error.localizedDescription)"
+                resultText = "\(codeEditorMode.failurePrefix)：\(error.localizedDescription)"
             }
         }
     }
@@ -628,6 +827,42 @@ struct ContentView: View {
         return formatter.string(from: date)
     }
 
+    @ViewBuilder
+    private func expirationBadge(expiresAt: Date) -> some View {
+        TimelineView(.periodic(from: Date(), by: 30)) { timeline in
+            Text(expirationText(expiresAt: expiresAt, now: timeline.date))
+                .font(.caption2.bold())
+                .foregroundStyle(expirationColor(expiresAt: expiresAt, now: timeline.date))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    expirationColor(expiresAt: expiresAt, now: timeline.date).opacity(colorScheme == .dark ? 0.18 : 0.12),
+                    in: Capsule(style: .continuous)
+                )
+                .accessibilityLabel(expirationText(expiresAt: expiresAt, now: timeline.date))
+        }
+    }
+
+    private func expirationText(expiresAt: Date, now: Date) -> String {
+        let remaining = expiresAt.timeIntervalSince(now)
+        if remaining <= 0 {
+            return "已过期"
+        }
+        if remaining <= 3 * 60 {
+            return "即将过期"
+        }
+        let minutes = max(1, Int(ceil(remaining / 60)))
+        return "剩余 \(minutes) 分钟"
+    }
+
+    private func expirationColor(expiresAt: Date, now: Date) -> Color {
+        let remaining = expiresAt.timeIntervalSince(now)
+        if remaining <= 3 * 60 {
+            return .orange
+        }
+        return snapshotSecondaryColor
+    }
+
     private func formatBox(_ box: CGRect) -> String {
         "x:\(format(box.minX)) y:\(format(box.minY)) w:\(format(box.width)) h:\(format(box.height))"
     }
@@ -652,22 +887,6 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
-    private func snapshotIcon(_ icon: String, brandIconName: String?) -> some View {
-        if let brandIconName {
-            Image(brandIconName)
-                .resizable()
-                .scaledToFit()
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(colorScheme == .dark ? 0.26 : 0.10), radius: 4, y: 2)
-        } else {
-            Image(systemName: icon)
-                .font(.system(size: 42, weight: .semibold))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(snapshotPrimaryColor)
-        }
-    }
-
     private func brandDebugText(_ report: CodeExtractionDebugReport?) -> String {
         guard let report else { return "-" }
         let location = report.pickupLocation ?? "-"
@@ -678,9 +897,199 @@ struct ContentView: View {
         return "\(detection.brand.name) · category \(detection.brand.category.rawValue) · score \(format(detection.score)) · location \(location) · \(terms)"
     }
 
-    private func visiblePickupContext(_ context: String) -> String {
-        let internalReasons = ["邻近行命中关键词", "快递取件码", "关键词旁码", "数字码型", "字母数字混合", "负向上下文"]
-        return internalReasons.contains(context) ? "" : context
+    @ViewBuilder
+    private var screenshotButton: some View {
+        compactSnapshotAction(systemImage: "photo", accessibilityLabel: "查看截图") {
+            showScreenshotViewer = true
+        }
+    }
+
+    @ViewBuilder
+    private var screenshotViewerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+
+                if let image = screenshotImage {
+                    ZoomableImage(image: image)
+                        .ignoresSafeArea(edges: .bottom)
+                } else {
+                    ProgressView("加载中...")
+                        .tint(.white)
+                }
+
+                if let screenshotMetadata {
+                    Text(screenshotMetadataText(screenshotMetadata))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.82))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(.black.opacity(0.46), in: Capsule(style: .continuous))
+                        .padding(.bottom, 18)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+            }
+            .navigationTitle("查看截图")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showScreenshotViewer = false
+                    }
+                }
+            }
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.black.opacity(0.8), for: .navigationBar)
+        }
+        .onAppear {
+            loadScreenshotImage()
+        }
+        .onDisappear {
+            screenshotImage = nil
+            screenshotMetadata = nil
+        }
+    }
+
+    private func loadScreenshotImage() {
+        Task {
+            do {
+                let data = try ScreenshotManager.shared.loadCurrentScreenshot()
+                let metadata = ScreenshotManager.shared.currentScreenshotMetadata()
+                await MainActor.run {
+                    screenshotImage = UIImage(data: data)
+                    screenshotMetadata = metadata
+                }
+            } catch {
+                print("Failed to load screenshot: \(error)")
+            }
+        }
+    }
+
+    private func screenshotMetadataText(_ metadata: ScreenshotMetadata) -> String {
+        let width = Int(metadata.pixelSize.width.rounded())
+        let height = Int(metadata.pixelSize.height.rounded())
+        return "\(width)x\(height) · \(formatByteCount(metadata.fileSize))"
+    }
+
+    private func formatByteCount(_ byteCount: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+    }
+
+}
+
+private enum CodeEditorMode: Equatable {
+    case add
+    case editCurrent
+
+    var title: String {
+        switch self {
+        case .add:
+            return "手动添加"
+        case .editCurrent:
+            return "编辑取码"
+        }
+    }
+
+    var confirmationTitle: String {
+        switch self {
+        case .add:
+            return "保存"
+        case .editCurrent:
+            return "更新"
+        }
+    }
+
+    var defaultContext: String {
+        switch self {
+        case .add:
+            return "手动添加"
+        case .editCurrent:
+            return "手动编辑"
+        }
+    }
+
+    var successMessage: String {
+        switch self {
+        case .add:
+            return "已手动添加，已更新实时活动。"
+        case .editCurrent:
+            return "已更新当前取码。"
+        }
+    }
+
+    var failurePrefix: String {
+        switch self {
+        case .add:
+            return "手动添加失败"
+        case .editCurrent:
+            return "编辑失败"
+        }
+    }
+}
+
+private struct ZoomableImage: View {
+    let image: UIImage
+
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var lastOffset: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { proxy in
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .scaleEffect(scale)
+                .offset(offset)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .contentShape(Rectangle())
+                .gesture(dragGesture.simultaneously(with: magnificationGesture))
+                .onTapGesture(count: 2) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.84)) {
+                        reset()
+                    }
+                }
+        }
+    }
+
+    private var magnificationGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                scale = min(max(lastScale * value, 1), 5)
+                if scale == 1 {
+                    offset = .zero
+                }
+            }
+            .onEnded { _ in
+                if scale < 1.04 {
+                    reset()
+                } else {
+                    lastScale = scale
+                    lastOffset = offset
+                }
+            }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                guard scale > 1 else { return }
+                offset = CGSize(
+                    width: lastOffset.width + value.translation.width,
+                    height: lastOffset.height + value.translation.height
+                )
+            }
+            .onEnded { _ in
+                lastOffset = offset
+            }
+    }
+
+    private func reset() {
+        scale = 1
+        lastScale = 1
+        offset = .zero
+        lastOffset = .zero
     }
 }
 

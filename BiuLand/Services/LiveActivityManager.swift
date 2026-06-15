@@ -15,7 +15,7 @@ final class LiveActivityManager {
     }
 
     @MainActor
-    func upsert(code: String, context: String, confidence: Double) async throws {
+    func upsert(code: String, context: String, confidence: Double) async throws -> CurrentPickupCodeItem {
         try await upsert(code: code, context: context, icon: "fork.knife", confidence: confidence)
     }
 
@@ -27,10 +27,24 @@ final class LiveActivityManager {
         brandIconName: String? = nil,
         brandName: String? = nil,
         category: PickupCategory? = nil,
-        confidence: Double
-    ) async throws {
+        confidence: Double,
+        imageData: Data? = nil,
+        preserveExistingScreenshot: Bool = false
+    ) async throws -> CurrentPickupCodeItem {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             throw LiveActivityError.notAuthorized
+        }
+
+        var hasScreenshot = preserveExistingScreenshot && ScreenshotManager.shared.currentScreenshotExists()
+        if let imageData = imageData {
+            do {
+                _ = try ScreenshotManager.shared.saveCurrentScreenshot(imageData)
+                hasScreenshot = true
+            } catch {
+                print("Failed to save screenshot: \(error)")
+            }
+        } else if preserveExistingScreenshot == false {
+            ScreenshotManager.shared.deleteCurrentScreenshot()
         }
 
         let state = PickupCodeActivityAttributes.ContentState(
@@ -41,6 +55,7 @@ final class LiveActivityManager {
             brandName: brandName,
             category: category?.rawValue,
             confidence: confidence,
+            hasScreenshot: hasScreenshot,
             updatedAt: Date()
         )
 
@@ -48,20 +63,30 @@ final class LiveActivityManager {
             await existing.update(
                 ActivityContent(
                     state: state,
-                    staleDate: Date().addingTimeInterval(20 * 60)
+                    staleDate: Date().addingTimeInterval(PickupCodeHistoryStore.currentLifetime)
                 )
             )
-            return
+        } else {
+            let attributes = PickupCodeActivityAttributes(title: "取码助手")
+            _ = try Activity.request(
+                attributes: attributes,
+                content: ActivityContent(
+                    state: state,
+                    staleDate: Date().addingTimeInterval(PickupCodeHistoryStore.currentLifetime)
+                ),
+                pushType: nil
+            )
         }
 
-        let attributes = PickupCodeActivityAttributes(title: "取码助手")
-        _ = try Activity.request(
-            attributes: attributes,
-            content: ActivityContent(
-                state: state,
-                staleDate: Date().addingTimeInterval(20 * 60)
-            ),
-            pushType: nil
+        return PickupCodeHistoryStore.saveCurrent(
+            code: code,
+            context: context,
+            icon: icon,
+            brandIconName: brandIconName,
+            brandName: brandName,
+            category: category,
+            confidence: confidence,
+            hasScreenshot: hasScreenshot
         )
     }
 

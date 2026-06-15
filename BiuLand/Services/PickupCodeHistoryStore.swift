@@ -1,6 +1,6 @@
 import Foundation
 
-struct PickupCodeHistoryItem: Codable, Hashable, Identifiable {
+nonisolated struct PickupCodeHistoryItem: Codable, Hashable, Identifiable {
     let id: UUID
     let code: String
     let context: String
@@ -12,7 +12,7 @@ struct PickupCodeHistoryItem: Codable, Hashable, Identifiable {
     let createdAt: Date
 }
 
-struct CurrentPickupCodeItem: Codable, Hashable {
+nonisolated struct CurrentPickupCodeItem: Codable, Hashable {
     let code: String
     let context: String
     let icon: String
@@ -22,13 +22,14 @@ struct CurrentPickupCodeItem: Codable, Hashable {
     let confidence: Double
     let createdAt: Date
     let expiresAt: Date
+    let hasScreenshot: Bool
 }
 
 enum PickupCodeHistoryStore {
     nonisolated private static let key = "pickupCodeHistory"
     nonisolated private static let currentKey = "currentPickupCode"
     nonisolated private static let limit = 5
-    nonisolated private static let currentLifetime: TimeInterval = 20 * 60
+    nonisolated static let currentLifetime: TimeInterval = 20 * 60
 
     nonisolated static func load() -> [PickupCodeHistoryItem] {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -53,6 +54,7 @@ enum PickupCodeHistoryStore {
         brandName: String? = nil,
         category: PickupCategory? = nil,
         confidence: Double,
+        hasScreenshot: Bool = false,
         now: Date = Date()
     ) -> CurrentPickupCodeItem {
         let current = CurrentPickupCodeItem(
@@ -64,7 +66,8 @@ enum PickupCodeHistoryStore {
             category: category,
             confidence: confidence,
             createdAt: now,
-            expiresAt: now.addingTimeInterval(currentLifetime)
+            expiresAt: now.addingTimeInterval(currentLifetime),
+            hasScreenshot: hasScreenshot
         )
 
         saveCurrent(current)
@@ -78,6 +81,12 @@ enum PickupCodeHistoryStore {
         }
 
         clearCurrent()
+
+        // 删除过期截图
+        if current.hasScreenshot {
+            ScreenshotManager.shared.deleteCurrentScreenshot()
+        }
+
         return add(current)
     }
 
@@ -85,6 +94,12 @@ enum PickupCodeHistoryStore {
     nonisolated static func completeCurrent() -> [PickupCodeHistoryItem] {
         guard let current = rawCurrent() else { return load() }
         clearCurrent()
+
+        // 删除完成后的截图
+        if current.hasScreenshot {
+            ScreenshotManager.shared.deleteCurrentScreenshot()
+        }
+
         return add(current)
     }
 

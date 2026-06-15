@@ -69,15 +69,23 @@ enum PickupBrandCatalog {
         PickupBrand(name: "瑞幸", aliases: ["LUCKIN", "瑞幸咖啡"], category: .drink, keywords: ["取餐码", "咖啡", "拿铁", "小蓝杯"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_luckin"),
         PickupBrand(name: "库迪", aliases: ["COTTI", "库迪咖啡"], category: .drink, keywords: ["咖啡", "取餐码", "拿铁"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "幸运咖", aliases: ["LUCKY CUP"], category: .drink, keywords: ["咖啡", "饮品", "取餐"], iconName: "cup.and.saucer.fill"),
-        PickupBrand(name: "蜜雪冰城", aliases: ["蜜雪", "MIXUE"], category: .drink, keywords: ["冰淇淋", "柠檬水", "取茶"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_mixue"),
-        PickupBrand(name: "古茗", aliases: ["GOODME"], category: .drink, keywords: ["奶茶", "取茶", "饮品"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_goodme"),
-        PickupBrand(name: "茶百道", aliases: ["CHA BAI DAO", "CHABAIDAO"], category: .drink, keywords: ["奶茶", "取茶", "饮品"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "蜜雪冰城", aliases: ["蜜雪", "MIXUE"], category: .drink, keywords: ["冰淇淋", "柠檬水", "取茶", "雪王"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_mixue"),
+        PickupBrand(name: "古茗", aliases: ["GOODME"], category: .drink, keywords: ["奶茶", "取茶", "饮品", "葫芦"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_goodme"),
+        PickupBrand(name: "茶百道", aliases: ["CHA BAI DAO", "CHABAIDAO"], category: .drink, keywords: ["奶茶", "取茶", "饮品", "熊猫币", "熊猫值"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "霸王茶姬", aliases: ["CHAGEE"], category: .drink, keywords: ["伯牙绝弦", "取茶", "奶茶"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_chagee"),
-        PickupBrand(name: "喜茶", aliases: ["HEYTEA"], category: .drink, keywords: ["取茶", "多肉葡萄", "饮品"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_heytea"),
+        PickupBrand(name: "喜茶", aliases: ["HEYTEA", "喜茶GO"], category: .drink, keywords: ["取茶", "多肉葡萄", "饮品"], iconName: "cup.and.saucer.fill", logoAssetName: "brand_heytea"),
         PickupBrand(name: "奈雪", aliases: ["奈雪的茶", "NAIXUE"], category: .drink, keywords: ["取茶", "奶茶", "饮品"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "沪上阿姨", aliases: ["沪上"], category: .drink, keywords: ["奶茶", "取茶", "饮品"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "CoCo", aliases: ["COCO", "都可"], category: .drink, keywords: ["奶茶", "取茶", "饮品"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "一点点", aliases: ["1点点"], category: .drink, keywords: ["奶茶", "取茶", "饮品"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "书亦烧仙草", aliases: ["书亦"], category: .drink, keywords: ["烧仙草", "奶茶", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "甜啦啦", aliases: [], category: .drink, keywords: ["奶茶", "柠檬茶", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "700CC", aliases: ["700"], category: .drink, keywords: ["奶茶", "饮品", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "鲜果时间", aliases: [], category: .drink, keywords: ["鲜果", "饮品", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "快乐柠檬", aliases: [], category: .drink, keywords: ["柠檬", "奶茶", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "7分甜", aliases: ["七分甜"], category: .drink, keywords: ["杨枝甘露", "奶茶", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "一只酸奶牛", aliases: ["酸奶牛"], category: .drink, keywords: ["酸奶", "饮品", "取茶"], iconName: "cup.and.saucer.fill"),
+        PickupBrand(name: "茶颜悦色", aliases: ["茶颜"], category: .drink, keywords: ["奶茶", "取茶", "幽兰拿铁"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "Manner", aliases: ["MANNER"], category: .drink, keywords: ["咖啡", "取餐", "拿铁"], iconName: "cup.and.saucer.fill"),
         PickupBrand(name: "Tims", aliases: ["TIMS", "天好咖啡"], category: .drink, keywords: ["咖啡", "取餐", "拿铁"], iconName: "cup.and.saucer.fill"),
 
@@ -96,7 +104,9 @@ enum PickupBrandCatalog {
         PickupBrand(name: "极兔", aliases: ["极兔速递", "J&T", "JT"], category: .express, keywords: ["快递", "包裹", "取件码"], iconName: "shippingbox.fill"),
         PickupBrand(name: "德邦", aliases: ["德邦快递"], category: .express, keywords: ["快递", "包裹", "取件码"], iconName: "shippingbox.fill"),
         PickupBrand(name: "菜鸟", aliases: ["菜鸟驿站"], category: .express, keywords: ["驿站", "取件码", "包裹"], iconName: "shippingbox.fill"),
-        PickupBrand(name: "丰巢", aliases: ["丰巢柜", "快递柜"], category: .express, keywords: ["开柜", "取件码", "柜机"], iconName: "shippingbox.fill")
+        PickupBrand(name: "丰巢", aliases: ["丰巢柜", "快递柜"], category: .express, keywords: ["开柜", "取件码", "柜机"], iconName: "shippingbox.fill"),
+        PickupBrand(name: "中国邮政", aliases: ["邮政", "EMS"], category: .express, keywords: ["快递", "包裹", "取件码", "邮政大厅"], iconName: "shippingbox.fill"),
+        PickupBrand(name: "驿站", aliases: ["服务站", "代收点"], category: .express, keywords: ["快递", "包裹", "取件码"], iconName: "shippingbox.fill")
     ]
 
     nonisolated static func detect(in text: String) -> PickupBrandDetection? {
