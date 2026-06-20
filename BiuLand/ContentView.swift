@@ -116,7 +116,12 @@ struct ContentView: View {
     private func handlePhotoItem(_ item: PhotosPickerItem) async {
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
-                await MainActor.run { resultText = "无法读取图片数据。" }
+                await MainActor.run {
+                    resultText = "无法读取图片数据。"
+                    recognizedLines = []
+                    debugReport = nil
+                    selectedItem = nil
+                }
                 return
             }
 
@@ -138,6 +143,7 @@ struct ContentView: View {
                     recognizedLines = lines
                     debugReport = report
                     lastProcessedImageData = nil
+                    selectedItem = nil
                 }
                 return
             }
@@ -159,6 +165,7 @@ struct ContentView: View {
                 historyItems = PickupCodeHistoryStore.load()
                 recognizedLines = lines
                 debugReport = report
+                selectedItem = nil
             }
         } catch {
             await MainActor.run {
@@ -168,6 +175,9 @@ struct ContentView: View {
                 currentBrandIconName = nil
                 currentReason = "识别失败"
                 currentBrandName = nil
+                recognizedLines = []
+                debugReport = nil
+                selectedItem = nil
             }
         }
     }

@@ -108,16 +108,18 @@ enum CodeExtractor {
         let sortedCandidates = debugCandidates.sorted { lhs, rhs in
             isBetterCandidate(lhs, than: rhs)
         }
-        let selected = sortedCandidates.first.flatMap {
-            $0.score >= 0.5 ? CodeCandidate(
-                code: $0.normalizedToken,
-                score: $0.score,
-                reason: pickupLocation ?? "",
-                icon: $0.icon,
-                brandIconName: brandDetection?.brand.logoAssetName,
-                brandName: brandDetection?.brand.name,
+        let scoredSelection = luckinTextFallbackCandidate(from: sortedCandidates, documentText: documentText).map { (candidate: $0, score: max($0.score, 0.72)) }
+            ?? sortedCandidates.first { $0.score >= 0.5 }.map { (candidate: $0, score: $0.score) }
+        let selected = scoredSelection.map {
+                CodeCandidate(
+                    code: $0.candidate.normalizedToken,
+                    score: $0.score,
+                    reason: pickupLocation ?? $0.candidate.reason,
+                    icon: $0.candidate.icon,
+                    brandIconName: brandDetection?.brand.logoAssetName,
+                    brandName: brandDetection?.brand.name,
                 category: category
-            ) : nil
+            )
         }
         return CodeExtractionDebugReport(
             selected: selected,
@@ -126,6 +128,22 @@ enum CodeExtractor {
             category: category,
             pickupLocation: pickupLocation
         )
+    }
+
+    nonisolated private static func luckinTextFallbackCandidate(
+        from candidates: [CodeExtractionDebugCandidate],
+        documentText: String
+    ) -> CodeExtractionDebugCandidate? {
+        guard PickupBrandCatalog.detect(in: documentText)?.brand.name == "瑞幸" else { return nil }
+        return candidates.first { candidate in
+            candidate.normalizedToken.allSatisfy(\.isNumber)
+                && candidate.normalizedToken.count == 3
+                && !looksLikeDateOrTimeFragment(
+                    code: candidate.normalizedToken,
+                    line: candidate.normalizedLine,
+                    visualLine: candidate.visualLine
+                )
+        }
     }
 
     nonisolated private static func normalize(_ text: String) -> String {
@@ -442,6 +460,7 @@ enum CodeExtractor {
         }
         if looksLikePhraseCode(code) { score += 0.28 }
         if looksLikeQueueCode(code, context: context) { score += 0.34 }
+        if looksLikeQueueTableCode(code) { score += 0.28 }
         if line.contains("#\(code)") { score += 0.28 }
         if strongLine { score += 0.42 }
         if !strongLine { score += spatialKeywordBoost }
@@ -467,12 +486,14 @@ enum CodeExtractor {
             score -= 0.2
         }
         if looksLikeCouponPhrase(code, line: line) { score -= 0.6 }
+        if looksLikeInstructionListPhrase(code, line: line) { score -= 1.2 }
         if looksLikeProductSpec(code, line: line) { score -= 0.35 }
         if looksLikeFoodDistraction(code, line: line) { score -= 0.32 }
         if looksLikeStatusBarCode(code, line: line) { score -= 0.45 }
         if looksLikeDateOrTime(code, line: line) { score -= 0.3 }
         if looksLikeDateOrTimeFragment(code: code, line: line, visualLine: visualLine) { score -= 0.42 }
         if looksLikePhoneOrOrderNumber(code, line: line) { score -= 0.25 }
+        if looksLikePhoneNumberFragment(code: code, line: line) { score -= 1.0 }
         if looksLikePhoneTail(code: code, line: line, context: context) { score -= 0.65 }
         if code.hasPrefix("20") && code.count >= 6 { score -= 0.2 }
         if line.contains("¥") || line.contains("￥") { score -= 0.2 }
@@ -539,16 +560,22 @@ enum CodeExtractor {
             return lhs.spatialKeywordBoost > rhs.spatialKeywordBoost
         }
 
-        let lhsPhraseCode = looksLikePhraseCode(lhs.normalizedToken)
-        let rhsPhraseCode = looksLikePhraseCode(rhs.normalizedToken)
-        if lhsPhraseCode != rhsPhraseCode {
-            return lhsPhraseCode
-        }
-
         let lhsExpressCode = looksLikeExpressPickupCode(lhs.normalizedToken)
         let rhsExpressCode = looksLikeExpressPickupCode(rhs.normalizedToken)
         if lhsExpressCode != rhsExpressCode {
             return lhsExpressCode
+        }
+
+        let lhsQueueTableCode = looksLikeQueueTableCode(lhs.normalizedToken)
+        let rhsQueueTableCode = looksLikeQueueTableCode(rhs.normalizedToken)
+        if lhsQueueTableCode != rhsQueueTableCode {
+            return lhsQueueTableCode
+        }
+
+        let lhsPhraseCode = looksLikePhraseCode(lhs.normalizedToken)
+        let rhsPhraseCode = looksLikePhraseCode(rhs.normalizedToken)
+        if lhsPhraseCode != rhsPhraseCode {
+            return lhsPhraseCode
         }
 
         if lhs.confidence != rhs.confidence {
@@ -601,6 +628,9 @@ enum CodeExtractor {
     nonisolated private static func iconForPickupContext(_ text: String) -> String {
         if CodeExtractionRules.packageKeywords.contains(where: { text.contains($0) }) {
             return "shippingbox.fill"
+        }
+        if CodeExtractionRules.queueKeywords.contains(where: { text.contains($0) }) {
+            return "person.2.fill"
         }
         if CodeExtractionRules.drinkKeywords.contains(where: { text.contains($0) }) {
             return "cup.and.saucer.fill"
@@ -676,12 +706,26 @@ enum CodeExtractor {
             context.contains(keyword) ? count + 1 : count
         }
         guard queueKeywordCount >= 2 else { return false }
-        return matches(regex: #"^[A-Z]{1,2}\d{1,3}$"#, in: code).contains(code)
+        return looksLikeQueueTableCode(code)
+            || matches(regex: #"^[A-Z]{1,2}\d{1,3}$"#, in: code).contains(code)
             || matches(regex: #"^\d{3,4}$"#, in: code).contains(code)
+    }
+
+    nonisolated private static func looksLikeQueueTableCode(_ code: String) -> Bool {
+        matches(regex: #"^(?:单人|双人|多人|小|中|大|卡|包|圆)?(?:桌|位|台)[A-Z]\d{1,4}$"#, in: code).contains(code)
     }
 
     nonisolated private static func looksLikeCouponPhrase(_ code: String, line: String) -> Bool {
         code.contains("元券") || line.contains("元券") || line.contains("评价抽")
+    }
+
+    nonisolated private static func looksLikeInstructionListPhrase(_ code: String, line: String) -> Bool {
+        guard looksLikePhraseCode(code) else { return false }
+        let instructionKeywords = [
+            "商家说明", "官方渠道", "非官方渠道", "渠道取号", "按需取号", "关注进度",
+            "存在无效", "被转卖", "风险", "正常就餐", "请认准", "认准"
+        ]
+        return instructionKeywords.contains { line.contains($0) }
     }
 
     nonisolated private static func looksLikeProductSpec(_ code: String, line: String) -> Bool {
@@ -725,6 +769,13 @@ enum CodeExtractor {
             return true
         }
         return line.contains("**\(code)") || line.contains("****\(code)")
+    }
+
+    nonisolated private static func looksLikePhoneNumberFragment(code: String, line: String) -> Bool {
+        guard code.allSatisfy(\.isNumber), code.count >= 2, code.count <= 4 else { return false }
+        let hasPhoneLabel = CodeExtractionRules.phoneTailKeywords.contains { line.contains($0) }
+        let hasMaskedPhone = line.contains("*") || line.contains("＊")
+        return hasPhoneLabel && (hasMaskedPhone || line.contains(code))
     }
 
     nonisolated private static func capturedMatches(regex: String, in text: String, group: Int = 1) -> [String] {

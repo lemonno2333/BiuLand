@@ -17,7 +17,10 @@ struct PickupCodeDisplayModel: Hashable {
     }
 
     static func completionTitle(for icon: String) -> String {
-        icon == "shippingbox.fill" ? "已经取件" : "已经取餐"
+        if icon == "person.2.fill" {
+            return "已经就餐"
+        }
+        return icon == "shippingbox.fill" ? "已经取件" : "已经取餐"
     }
 
     private static let hiddenContexts: Set<String> = [

@@ -35,9 +35,10 @@ final class OCRService {
 
     func recognizeTextLines(from cgImage: CGImage) async throws -> [RecognizedTextLine] {
         try await withCheckedThrowingContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, error in
+            var recognitionResult: Result<[RecognizedTextLine], Error> = .success([])
+            let textRequest = VNRecognizeTextRequest { request, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    recognitionResult = .failure(error)
                     return
                 }
                 let observations = request.results as? [VNRecognizedTextObservation] ?? []
@@ -50,19 +51,20 @@ final class OCRService {
                         imageSize: CGSize(width: cgImage.width, height: cgImage.height)
                     )
                 }
-                continuation.resume(returning: lines)
+                recognitionResult = .success(lines)
             }
 
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = false
-            request.minimumTextHeight = 0.015
-            request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
-            request.automaticallyDetectsLanguage = true
+            textRequest.recognitionLevel = .accurate
+            textRequest.usesLanguageCorrection = false
+            textRequest.minimumTextHeight = 0.015
+            textRequest.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+            textRequest.automaticallyDetectsLanguage = true
 
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
-                    try handler.perform([request])
+                    try handler.perform([textRequest])
+                    continuation.resume(with: recognitionResult)
                 } catch {
                     continuation.resume(throwing: error)
                 }

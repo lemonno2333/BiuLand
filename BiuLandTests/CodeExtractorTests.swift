@@ -41,6 +41,48 @@ final class CodeExtractorTests: XCTestCase {
         XCTAssertEqual(candidate?.category, .drink)
     }
 
+    func testDetectsLuckinFromPickupCodeAndScanPrompt() {
+        let candidate = CodeExtractor.bestCode(from: [
+            "520",
+            "取餐码",
+            "张女士，请扫码取餐",
+            "订单号 20260614123456"
+        ])
+
+        XCTAssertEqual(candidate?.code, "520")
+        XCTAssertEqual(candidate?.brandName, "瑞幸")
+        XCTAssertEqual(candidate?.category, .drink)
+    }
+
+    func testDetectsLuckinWhenPickupCodeAndScanPromptAreSeparateLines() {
+        let candidate = CodeExtractor.bestCode(from: [
+            "取餐码",
+            "521",
+            "张女士，请扫码取餐",
+            "预计 13:48 可制作完成"
+        ])
+
+        XCTAssertEqual(candidate?.code, "521")
+        XCTAssertEqual(candidate?.brandName, "瑞幸")
+        XCTAssertEqual(candidate?.category, .drink)
+    }
+
+    func testDoesNotDetectLuckinWithoutScanPrompt() {
+        let detection = PickupBrandCatalog.detect(in: "520 取餐码")
+
+        XCTAssertNil(detection)
+    }
+
+    func testDoesNotDetectLuckinWithoutSupportFeature() {
+        let detection = PickupBrandCatalog.detect(in: "520 取餐码 张女士，请扫码取餐")
+
+        XCTAssertNil(detection)
+    }
+
+    func testLuckinTextFallbackDoesNotOverrideExplicitBrand() {
+        assertBrand("M Stand 咖啡 520 取餐码 请扫码取餐", name: "M Stand", category: .drink)
+    }
+
     func testExtractsExpressPickupCode() {
         let candidate = CodeExtractor.bestCode(from: [
             "菜鸟驿站",
@@ -131,7 +173,117 @@ final class CodeExtractorTests: XCTestCase {
             "小桌 A3"
         ])
 
-        XCTAssertEqual(candidate?.code, "A3")
+        XCTAssertEqual(candidate?.code, "小桌A3")
+    }
+
+    func testExtractsMeituanQueueTableCodeWithTableType() {
+        let candidate = CodeExtractor.bestCode(from: [
+            "排队详情",
+            "当前时间 18:42:04",
+            "中桌 B141",
+            "还需等待 5 桌，预计 10 分钟",
+            "取号成功",
+            "待叫号",
+            "已就餐",
+            "盛香亭转转热卤(西丽宝能店)",
+            "取号时间：17:20（已等待 81 分钟）",
+            "手机号码：181****6782（线上取号）",
+            "商家说明",
+            "1、认准官方渠道取号",
+            "通过非官方渠道获取的取号，存在无效、被转卖等风险，导致无法正常就餐，请认准官方渠道！！",
+            "2、按需取号，关注进度"
+        ])
+
+        XCTAssertEqual(candidate?.code, "中桌B141")
+        XCTAssertEqual(candidate?.icon, "person.2.fill")
+    }
+
+    func testRejectsMaskedPhonePrefixOnQueuePage() {
+        let candidate = CodeExtractor.bestCode(from: [
+            RecognizedTextLine(
+                text: "排队详情",
+                confidence: 1,
+                boundingBox: CGRect(x: 0.38, y: 0.86, width: 0.24, height: 0.03),
+                imageSize: CGSize(width: 1080, height: 2400)
+            ),
+            RecognizedTextLine(
+                text: "中桌 B141",
+                confidence: 1,
+                boundingBox: CGRect(x: 0.363, y: 0.687, width: 0.273, height: 0.045),
+                imageSize: CGSize(width: 1080, height: 2400)
+            ),
+            RecognizedTextLine(
+                text: "还需等待 5 桌，预计 10 分钟",
+                confidence: 1,
+                boundingBox: CGRect(x: 0.31, y: 0.63, width: 0.38, height: 0.03),
+                imageSize: CGSize(width: 1080, height: 2400)
+            ),
+            RecognizedTextLine(
+                text: "盛香亭转转热卤(西丽宝能店) >",
+                confidence: 1,
+                boundingBox: CGRect(x: 0.05, y: 0.42, width: 0.5, height: 0.03),
+                imageSize: CGSize(width: 1080, height: 2400)
+            ),
+            RecognizedTextLine(
+                text: "手机号码：181****6782（线上取号）",
+                confidence: 1,
+                boundingBox: CGRect(x: 0.051, y: 0.368, width: 0.478, height: 0.022),
+                imageSize: CGSize(width: 1080, height: 2400)
+            )
+        ])
+
+        XCTAssertEqual(candidate?.code, "中桌B141")
+    }
+
+    func testRejectsMerchantInstructionListAsPhraseCode() {
+        let candidate = CodeExtractor.bestCode(from: [
+            "商家说明",
+            "1、认准官方渠道取号",
+            "通过非官方渠道获取的取号，存在无效、被转卖等风险，导致无法正常就餐，请认准官方渠道！！",
+            "2、按需取号，关注进度"
+        ])
+
+        XCTAssertNil(candidate)
+    }
+
+    func testExtractsMeituanQueueSeatCodeWithSeatType() {
+        let candidate = CodeExtractor.bestCode(from: [
+            "排队详情",
+            "双人位 B247",
+            "还需等待 51 桌",
+            "取号时间：18:00（已等待 2 分钟）",
+            "手机号码：****（线上取号）",
+            "如无法到店就餐，请及时取消"
+        ])
+
+        XCTAssertEqual(candidate?.code, "双人位B247")
+        XCTAssertEqual(candidate?.reason, "排队取号")
+        XCTAssertEqual(candidate?.icon, "person.2.fill")
+    }
+
+    func testPrefersFullQueueSeatCodeOverSubTokenWithLowOCRConfidence() {
+        let candidate = CodeExtractor.bestCode(from: [
+            RecognizedTextLine(
+                text: "排队详情",
+                confidence: 1,
+                boundingBox: CGRect(x: 0.38, y: 0.86, width: 0.24, height: 0.03),
+                imageSize: CGSize(width: 1080, height: 2400)
+            ),
+            RecognizedTextLine(
+                text: "双人位 B247",
+                confidence: 0.5,
+                boundingBox: CGRect(x: 0.335, y: 0.846, width: 0.332, height: 0.026),
+                imageSize: CGSize(width: 1080, height: 2400)
+            ),
+            RecognizedTextLine(
+                text: "还需等待 51 桌",
+                confidence: 0.9,
+                boundingBox: CGRect(x: 0.35, y: 0.80, width: 0.3, height: 0.03),
+                imageSize: CGSize(width: 1080, height: 2400)
+            )
+        ])
+
+        XCTAssertEqual(candidate?.code, "双人位B247")
     }
 
     private func assertBrand(

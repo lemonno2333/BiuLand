@@ -192,7 +192,22 @@ enum PickupBrandCatalog {
             return best
         }
 
-        return detectHeyteaByPickupPageFeatures(in: normalizedText)
+        return detectLuckinByPickupTextFeatures(in: normalizedText)
+            ?? detectHeyteaByPickupPageFeatures(in: normalizedText)
+    }
+
+    nonisolated private static func detectLuckinByPickupTextFeatures(in normalizedText: String) -> PickupBrandDetection? {
+        guard normalizedText.contains(normalize("请扫码取餐")) || normalizedText.contains(normalize("扫码取餐")) else { return nil }
+        guard containsStandaloneThreeDigitCode(in: normalizedText) else { return nil }
+        guard normalizedText.contains(normalize("取餐码")) else { return nil }
+        guard containsLuckinSupportFeature(in: normalizedText) else { return nil }
+        guard let luckin = brands.first(where: { $0.name == "瑞幸" }) else { return nil }
+
+        return PickupBrandDetection(
+            brand: luckin,
+            score: 18,
+            matchedTerms: ["取餐码", "扫码取餐", "三位数", "订单/自提/制作/NO"]
+        )
     }
 
     nonisolated private static func detectHeyteaByPickupPageFeatures(in normalizedText: String) -> PickupBrandDetection? {
@@ -213,6 +228,24 @@ enum PickupBrandCatalog {
         )
     }
 
+    nonisolated private static func containsStandaloneThreeDigitCode(in text: String) -> Bool {
+        let pattern = #"(^|[^0-9])\d{3}([^0-9]|$)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return expression.firstMatch(in: text, range: range) != nil
+    }
+
+    nonisolated private static func containsLuckinSupportFeature(in text: String) -> Bool {
+        if ["订单", "自提", "制作"].contains(where: { text.contains(normalize($0)) }) {
+            return true
+        }
+
+        let pattern = #"(^|[^A-Z0-9])NO([.:#号]|[^A-Z0-9]|$)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return expression.firstMatch(in: text, range: range) != nil
+    }
+
     nonisolated static func fallbackCategory(for text: String) -> PickupCategory {
         let normalizedText = normalize(text)
         if ["取件", "快递", "速递", "物流", "包裹", "驿站", "菜鸟", "丰巢", "开柜", "柜机", "提货", "取货"].contains(where: { normalizedText.contains(normalize($0)) }) {
@@ -229,6 +262,7 @@ enum PickupBrandCatalog {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "　", with: "")
             .replacingOccurrences(of: "：", with: ":")
+            .replacingOccurrences(of: "，", with: ",")
             .replacingOccurrences(of: "碼", with: "码")
             .replacingOccurrences(of: "號", with: "号")
             .replacingOccurrences(of: "單", with: "单")
