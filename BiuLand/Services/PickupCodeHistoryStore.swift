@@ -28,11 +28,14 @@ nonisolated struct CurrentPickupCodeItem: Codable, Hashable {
 enum PickupCodeHistoryStore {
     nonisolated private static let key = "pickupCodeHistory"
     nonisolated private static let currentKey = "currentPickupCode"
+    nonisolated private static let needsLiveActivityRestoreKey = "currentPickupCodeNeedsLiveActivityRestore"
     nonisolated private static let limit = 5
     nonisolated static let currentLifetime: TimeInterval = 20 * 60
+    nonisolated private static var defaults: UserDefaults { AppGroup.userDefaults }
+    nonisolated private static var legacyDefaults: UserDefaults { .standard }
 
     nonisolated static func load() -> [PickupCodeHistoryItem] {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = storedData(forKey: key),
               let items = try? JSONDecoder().decode([PickupCodeHistoryItem].self, from: data) else {
             return []
         }
@@ -55,6 +58,7 @@ enum PickupCodeHistoryStore {
         category: PickupCategory? = nil,
         confidence: Double,
         hasScreenshot: Bool = false,
+        needsLiveActivityRestore: Bool = false,
         now: Date = Date()
     ) -> CurrentPickupCodeItem {
         let current = CurrentPickupCodeItem(
@@ -71,6 +75,7 @@ enum PickupCodeHistoryStore {
         )
 
         saveCurrent(current)
+        setNeedsLiveActivityRestore(needsLiveActivityRestore)
         return current
     }
 
@@ -104,7 +109,22 @@ enum PickupCodeHistoryStore {
     }
 
     nonisolated static func clearCurrent() {
-        UserDefaults.standard.removeObject(forKey: currentKey)
+        defaults.removeObject(forKey: currentKey)
+        legacyDefaults.removeObject(forKey: currentKey)
+        setNeedsLiveActivityRestore(false)
+    }
+
+    nonisolated static func needsLiveActivityRestore() -> Bool {
+        defaults.bool(forKey: needsLiveActivityRestoreKey)
+    }
+
+    nonisolated static func setNeedsLiveActivityRestore(_ needsRestore: Bool) {
+        if needsRestore {
+            defaults.set(true, forKey: needsLiveActivityRestoreKey)
+        } else {
+            defaults.removeObject(forKey: needsLiveActivityRestoreKey)
+            legacyDefaults.removeObject(forKey: needsLiveActivityRestoreKey)
+        }
     }
 
     @discardableResult
@@ -150,20 +170,24 @@ enum PickupCodeHistoryStore {
     }
 
     nonisolated private static func rawCurrent() -> CurrentPickupCodeItem? {
-        guard let data = UserDefaults.standard.data(forKey: currentKey),
+        guard let data = storedData(forKey: currentKey),
               let current = try? JSONDecoder().decode(CurrentPickupCodeItem.self, from: data) else {
             return nil
         }
         return current
     }
 
+    nonisolated private static func storedData(forKey key: String) -> Data? {
+        defaults.data(forKey: key) ?? legacyDefaults.data(forKey: key)
+    }
+
     nonisolated private static func saveCurrent(_ current: CurrentPickupCodeItem) {
         guard let data = try? JSONEncoder().encode(current) else { return }
-        UserDefaults.standard.set(data, forKey: currentKey)
+        defaults.set(data, forKey: currentKey)
     }
 
     nonisolated private static func save(_ items: [PickupCodeHistoryItem]) {
         guard let data = try? JSONEncoder().encode(items) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        defaults.set(data, forKey: key)
     }
 }

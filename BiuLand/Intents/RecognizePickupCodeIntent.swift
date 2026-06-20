@@ -66,6 +66,10 @@ struct RecognizePickupCodeIntent: LiveActivityIntent {
 
             return .result()
         } catch {
+            if let intentError = error as? RecognizePickupCodeIntentError {
+                throw intentError
+            }
+
             throw RecognizePickupCodeIntentError.recognitionFailed(failureMessage(for: error))
         }
     }

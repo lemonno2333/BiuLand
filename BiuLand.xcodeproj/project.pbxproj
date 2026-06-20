@@ -10,6 +10,7 @@
 		B3B00BCF2FAB154A00DFA28D /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B3B00BCE2FAB154A00DFA28D /* WidgetKit.framework */; };
 		B3B00BD12FAB154A00DFA28D /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B3B00BD02FAB154A00DFA28D /* SwiftUI.framework */; };
 		B3B00BE22FAB154C00DFA28D /* LiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B3B00BCC2FAB154A00DFA28D /* LiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C0D000012FC0000100DFA28D /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0D000042FC0000100DFA28D /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,6 +28,13 @@
 			remoteGlobalIDString = B3B00BCB2FAB154A00DFA28D;
 			remoteInfo = LiveActivityExtension;
 		};
+		C0D000022FC0000100DFA28D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B3B00BA32FAB121E00DFA28D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0D0000B2FC0000100DFA28D;
+			remoteInfo = ShareExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -37,6 +45,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				B3B00BE22FAB154C00DFA28D /* LiveActivityExtension.appex in Embed Foundation Extensions */,
+				C0D000012FC0000100DFA28D /* ShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -49,6 +58,7 @@
 		B3B00BCC2FAB154A00DFA28D /* LiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3B00BCE2FAB154A00DFA28D /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		B3B00BD02FAB154A00DFA28D /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		C0D000042FC0000100DFA28D /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -68,6 +78,28 @@
 			);
 			target = B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */;
 		};
+		C0D000052FC0000100DFA28D /* Exceptions for "ShareExtension" folder in "ShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C0D0000B2FC0000100DFA28D /* ShareExtension */;
+		};
+		C0D000062FC0000100DFA28D /* Exceptions for "BiuLand" folder in "ShareExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/CodeExtractionRules.swift,
+				Services/CodeExtractor.swift,
+				Services/LiveActivityManager.swift,
+				Services/OCRService.swift,
+				Services/PickupBrandCatalog.swift,
+				Services/PickupCodeHistoryStore.swift,
+				Services/ScreenshotManager.swift,
+				Shared/AppGroup.swift,
+				Shared/PickupCodeActivityAttributes.swift,
+			);
+			target = C0D0000B2FC0000100DFA28D /* ShareExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -80,6 +112,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				B3B00BE92FAB157B00DFA28D /* Exceptions for "BiuLand" folder in "LiveActivityExtension" target */,
+				C0D000062FC0000100DFA28D /* Exceptions for "BiuLand" folder in "ShareExtension" target */,
 			);
 			path = BiuLand;
 			sourceTree = "<group>";
@@ -90,6 +123,14 @@
 				B3B00BE32FAB154C00DFA28D /* Exceptions for "LiveActivity" folder in "LiveActivityExtension" target */,
 			);
 			path = LiveActivity;
+			sourceTree = "<group>";
+		};
+		C0D000072FC0000100DFA28D /* ShareExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C0D000052FC0000100DFA28D /* Exceptions for "ShareExtension" folder in "ShareExtension" target */,
+			);
+			path = ShareExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -118,6 +159,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0D000082FC0000100DFA28D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -127,6 +175,7 @@
 				B3B00BAD2FAB121E00DFA28D /* BiuLand */,
 				A1B2C3032FB0000100DFA28D /* BiuLandTests */,
 				B3B00BD22FAB154A00DFA28D /* LiveActivity */,
+				C0D000072FC0000100DFA28D /* ShareExtension */,
 				B3B00BCD2FAB154A00DFA28D /* Frameworks */,
 				B3B00BAC2FAB121E00DFA28D /* Products */,
 			);
@@ -138,6 +187,7 @@
 				B3B00BAB2FAB121E00DFA28D /* BiuLand.app */,
 				A1B2C3022FB0000100DFA28D /* BiuLandTests.xctest */,
 				B3B00BCC2FAB154A00DFA28D /* LiveActivityExtension.appex */,
+				C0D000042FC0000100DFA28D /* ShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -190,6 +240,7 @@
 			);
 			dependencies = (
 				B3B00BE12FAB154C00DFA28D /* PBXTargetDependency */,
+				C0D000032FC0000100DFA28D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				B3B00BAD2FAB121E00DFA28D /* BiuLand */,
@@ -223,6 +274,28 @@
 			productReference = B3B00BCC2FAB154A00DFA28D /* LiveActivityExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C0D0000B2FC0000100DFA28D /* ShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0D0000C2FC0000100DFA28D /* Build configuration list for PBXNativeTarget "ShareExtension" */;
+			buildPhases = (
+				C0D000092FC0000100DFA28D /* Sources */,
+				C0D000082FC0000100DFA28D /* Frameworks */,
+				C0D0000A2FC0000100DFA28D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C0D000072FC0000100DFA28D /* ShareExtension */,
+			);
+			name = ShareExtension;
+			packageProductDependencies = (
+			);
+			productName = ShareExtension;
+			productReference = C0D000042FC0000100DFA28D /* ShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -241,6 +314,9 @@
 						CreatedOnToolsVersion = 26.3;
 					};
 					B3B00BCB2FAB154A00DFA28D = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					C0D0000B2FC0000100DFA28D = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
@@ -262,6 +338,7 @@
 				B3B00BAA2FAB121E00DFA28D /* BiuLand */,
 				A1B2C3052FB0000100DFA28D /* BiuLandTests */,
 				B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */,
+				C0D0000B2FC0000100DFA28D /* ShareExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -282,6 +359,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B3B00BCA2FAB154A00DFA28D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0D0000A2FC0000100DFA28D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -312,6 +396,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0D000092FC0000100DFA28D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -325,6 +416,11 @@
 			target = B3B00BCB2FAB154A00DFA28D /* LiveActivityExtension */;
 			targetProxy = B3B00BE02FAB154C00DFA28D /* PBXContainerItemProxy */;
 		};
+		C0D000032FC0000100DFA28D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0D0000B2FC0000100DFA28D /* ShareExtension */;
+			targetProxy = C0D000022FC0000100DFA28D /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -333,7 +429,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 9BN22A9TB7;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
@@ -342,7 +438,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLandTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -360,7 +456,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 9BN22A9TB7;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
@@ -369,7 +465,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLandTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -503,7 +599,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BiuLand/BiuLand.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 9BN22A9TB7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
@@ -526,7 +622,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLand;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -551,7 +647,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BiuLand/BiuLand.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 9BN22A9TB7;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
@@ -574,7 +670,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.1;
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLand;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -598,7 +694,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 9BN22A9TB7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
@@ -611,7 +707,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLand.LiveActivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -631,7 +727,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 9BN22A9TB7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LiveActivity/Info.plist;
@@ -644,8 +740,75 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLand.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C0D0000D2FC0000100DFA28D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = 9BN22A9TB7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "BiuLand 识别";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLand.ShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C0D0000E2FC0000100DFA28D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = 9BN22A9TB7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "BiuLand 识别";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = com.leo.BiuLand.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -694,6 +857,15 @@
 			buildConfigurations = (
 				B3B00BE52FAB154C00DFA28D /* Debug */,
 				B3B00BE62FAB154C00DFA28D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0D0000C2FC0000100DFA28D /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0D0000D2FC0000100DFA28D /* Debug */,
+				C0D0000E2FC0000100DFA28D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -58,12 +58,11 @@
 - 在调用 `LiveActivityManager.shared.upsert()` 时传递 `imageData` 参数
 - 支持从快捷指令识别时也保存截图
 
-### 6. PickupCodeLiveActivity.swift (深色模式修复)
+### 6. LiveActivityLiveActivity.swift (锁屏实时活动颜色修复)
 **更新内容**:
-- 创建 `LiveActivityForeground` 颜色资源
-- 将所有硬编码的白色替换为适配的颜色
-- 浅色模式：白色文字
-- 深色模式：黑色文字
+- 为锁屏实时活动显式设置黑色背景
+- 为锁屏实时活动文字固定使用白色层级
+- 补全 `WidgetBackground` 颜色资源，避免系统背景回退
 
 ## 使用流程
 

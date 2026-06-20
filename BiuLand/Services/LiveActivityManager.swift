@@ -1,12 +1,21 @@
 import Foundation
 import ActivityKit
+import os
 
-enum LiveActivityError: Error {
+enum LiveActivityError: LocalizedError {
     case notAuthorized
+
+    var errorDescription: String? {
+        switch self {
+        case .notAuthorized:
+            return "实时活动未开启，请在系统设置中允许 BiuLand 使用实时活动。"
+        }
+    }
 }
 
 final class LiveActivityManager {
     static let shared = LiveActivityManager()
+    private let logger = Logger(subsystem: "com.leo.BiuLand", category: "liveActivity")
     private init() {}
 
     @MainActor
@@ -32,6 +41,7 @@ final class LiveActivityManager {
         preserveExistingScreenshot: Bool = false
     ) async throws -> CurrentPickupCodeItem {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            logger.warning("Live Activity authorization is disabled.")
             throw LiveActivityError.notAuthorized
         }
 
@@ -41,7 +51,7 @@ final class LiveActivityManager {
                 _ = try ScreenshotManager.shared.saveCurrentScreenshot(imageData)
                 hasScreenshot = true
             } catch {
-                print("Failed to save screenshot: \(error)")
+                logger.error("Failed to save current screenshot: \(error.localizedDescription, privacy: .public)")
             }
         } else if preserveExistingScreenshot == false {
             ScreenshotManager.shared.deleteCurrentScreenshot()
@@ -59,23 +69,30 @@ final class LiveActivityManager {
             updatedAt: Date()
         )
 
-        if let existing = Activity<PickupCodeActivityAttributes>.activities.first {
-            await existing.update(
-                ActivityContent(
-                    state: state,
-                    staleDate: Date().addingTimeInterval(PickupCodeHistoryStore.currentLifetime)
+        do {
+            if let existing = Activity<PickupCodeActivityAttributes>.activities.first {
+                await existing.update(
+                    ActivityContent(
+                        state: state,
+                        staleDate: Date().addingTimeInterval(PickupCodeHistoryStore.currentLifetime)
+                    )
                 )
-            )
-        } else {
-            let attributes = PickupCodeActivityAttributes(title: "取码助手")
-            _ = try Activity.request(
-                attributes: attributes,
-                content: ActivityContent(
-                    state: state,
-                    staleDate: Date().addingTimeInterval(PickupCodeHistoryStore.currentLifetime)
-                ),
-                pushType: nil
-            )
+                logger.debug("Updated Live Activity for code \(code, privacy: .private(mask: .hash)).")
+            } else {
+                let attributes = PickupCodeActivityAttributes(title: "取码助手")
+                _ = try Activity.request(
+                    attributes: attributes,
+                    content: ActivityContent(
+                        state: state,
+                        staleDate: Date().addingTimeInterval(PickupCodeHistoryStore.currentLifetime)
+                    ),
+                    pushType: nil
+                )
+                logger.debug("Requested Live Activity for code \(code, privacy: .private(mask: .hash)).")
+            }
+        } catch {
+            logger.error("Failed to upsert Live Activity: \(error.localizedDescription, privacy: .public)")
+            throw error
         }
 
         return PickupCodeHistoryStore.saveCurrent(
@@ -98,5 +115,6 @@ final class LiveActivityManager {
                 dismissalPolicy: .immediate
             )
         }
+        logger.debug("Ended all Live Activities.")
     }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import os
 
 struct ContentView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -34,6 +35,7 @@ struct ContentView: View {
     @State private var lastProcessedImageData: Data?
     @State private var revealedHistoryItemID: UUID?
     @State private var historyRowDragOffsets: [UUID: CGFloat] = [:]
+    private let logger = Logger(subsystem: "com.leo.BiuLand", category: "ui")
 
     var body: some View {
         NavigationStack {
@@ -73,10 +75,12 @@ struct ContentView: View {
             .toolbarBackground(.hidden, for: .navigationBar)
             .onAppear {
                 refreshFromHistory()
+                restoreLiveActivityIfNeeded()
             }
             .onChange(of: scenePhase) { newPhase in
                 if newPhase == .active {
                     refreshFromHistory()
+                    restoreLiveActivityIfNeeded()
                 }
             }
             .onChange(of: selectedItem) { newItem in
@@ -150,7 +154,7 @@ struct ContentView: View {
             )
 
             await MainActor.run {
-                resultText = "识别成功，已更新实时活动。"
+                resultText = current.hasScreenshot ? "识别成功，已更新实时活动。" : "识别成功，已更新实时活动，但截图保存失败。"
                 applyCurrent(current)
                 historyItems = PickupCodeHistoryStore.load()
                 recognizedLines = lines
@@ -189,16 +193,44 @@ struct ContentView: View {
         historyItems = PickupCodeHistoryStore.archiveCurrentIfExpired()
 
         if let current = PickupCodeHistoryStore.loadCurrent() {
-            if LiveActivityManager.shared.hasActiveActivities == false {
-                historyItems = PickupCodeHistoryStore.completeCurrent()
-                resetCurrentSnapshot()
-                resultText = "已同步已完成取码。"
-                return
-            }
             applyCurrent(current)
             resultText = "已同步最新取码。"
         } else {
             resetCurrentSnapshot()
+        }
+    }
+
+    private func restoreLiveActivityIfNeeded() {
+        guard LiveActivityManager.shared.hasActiveActivities == false,
+              PickupCodeHistoryStore.needsLiveActivityRestore(),
+              let current = PickupCodeHistoryStore.loadCurrent() else {
+            return
+        }
+
+        Task {
+            do {
+                let restored = try await LiveActivityManager.shared.upsert(
+                    code: current.code,
+                    context: current.context,
+                    icon: current.icon,
+                    brandIconName: current.brandIconName,
+                    brandName: current.brandName,
+                    category: current.category,
+                    confidence: current.confidence,
+                    preserveExistingScreenshot: current.hasScreenshot
+                )
+
+                await MainActor.run {
+                    PickupCodeHistoryStore.setNeedsLiveActivityRestore(false)
+                    applyCurrent(restored)
+                    resultText = "已同步分享识别结果，并更新实时活动。"
+                }
+            } catch {
+                await MainActor.run {
+                    applyCurrent(current)
+                    resultText = "已同步分享识别结果，但实时活动更新失败：\(error.localizedDescription)"
+                }
+            }
         }
     }
 
@@ -806,7 +838,7 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 Text("感谢 ")
                 Link("Hyper Pick-up Code", destination: URL(string: "https://github.com/badnng/Hyper-pick-up-code")!)
-                Text(" 的部分思路和灵感")
+                Text(" 的部分代码和灵感")
             }
             .font(.caption)
         }
@@ -955,12 +987,20 @@ struct ContentView: View {
             do {
                 let data = try ScreenshotManager.shared.loadCurrentScreenshot()
                 let metadata = ScreenshotManager.shared.currentScreenshotMetadata()
+                guard let image = UIImage(data: data) else {
+                    throw ScreenshotManagerError.loadFailure
+                }
+
                 await MainActor.run {
-                    screenshotImage = UIImage(data: data)
+                    screenshotImage = image
                     screenshotMetadata = metadata
                 }
             } catch {
-                print("Failed to load screenshot: \(error)")
+                logger.error("Failed to load screenshot viewer image: \(error.localizedDescription, privacy: .public)")
+                await MainActor.run {
+                    showScreenshotViewer = false
+                    resultText = "截图加载失败：\(error.localizedDescription)"
+                }
             }
         }
     }

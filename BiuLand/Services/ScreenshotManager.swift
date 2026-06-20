@@ -1,9 +1,19 @@
 import Foundation
 import UIKit
+import os
 
-enum ScreenshotManagerError: Error {
+enum ScreenshotManagerError: LocalizedError {
     case saveFailure
     case loadFailure
+
+    var errorDescription: String? {
+        switch self {
+        case .saveFailure:
+            return "截图保存失败，请确认传入的是有效图片。"
+        case .loadFailure:
+            return "找不到当前取码的截图，可能已经过期或被清理。"
+        }
+    }
 }
 
 nonisolated struct ScreenshotMetadata: Hashable {
@@ -13,15 +23,45 @@ nonisolated struct ScreenshotMetadata: Hashable {
 
 nonisolated final class ScreenshotManager {
     static let shared = ScreenshotManager()
+    private let logger = Logger(subsystem: "com.leo.BiuLand", category: "screenshot")
     private init() {}
     
     private var screenshotsDirectory: URL {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let directory = paths[0].appendingPathComponent("Screenshots", isDirectory: true)
+        preferredScreenshotsDirectory
+    }
+
+    private var preferredScreenshotsDirectory: URL {
+        let baseDirectory = AppGroup.containerURL ?? legacyBaseDirectory
+        let directory = baseDirectory.appendingPathComponent("Screenshots", isDirectory: true)
         
         // 确保目录存在
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+
+    private var legacyScreenshotsDirectory: URL {
+        let directory = legacyBaseDirectory.appendingPathComponent("Screenshots", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private var legacyBaseDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+
+    private var currentScreenshotFileURL: URL {
+        let filename = "current_screenshot.jpg"
+        let preferredURL = preferredScreenshotsDirectory.appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: preferredURL.path) {
+            return preferredURL
+        }
+
+        let legacyURL = legacyScreenshotsDirectory.appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: legacyURL.path) {
+            return legacyURL
+        }
+
+        return preferredURL
     }
     
     /// 保存当前取码的截图
@@ -44,8 +84,7 @@ nonisolated final class ScreenshotManager {
     
     /// 加载当前取码的截图
     func loadCurrentScreenshot() throws -> Data {
-        let filename = "current_screenshot.jpg"
-        let fileURL = screenshotsDirectory.appendingPathComponent(filename)
+        let fileURL = currentScreenshotFileURL
         
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw ScreenshotManagerError.loadFailure
@@ -56,27 +95,40 @@ nonisolated final class ScreenshotManager {
     
     /// 检查当前截图是否存在
     func currentScreenshotExists() -> Bool {
-        let filename = "current_screenshot.jpg"
-        let fileURL = screenshotsDirectory.appendingPathComponent(filename)
-        return FileManager.default.fileExists(atPath: fileURL.path)
+        FileManager.default.fileExists(atPath: currentScreenshotFileURL.path)
     }
     
     /// 删除当前取码的截图
     func deleteCurrentScreenshot() {
         let filename = "current_screenshot.jpg"
-        let fileURL = screenshotsDirectory.appendingPathComponent(filename)
-        try? FileManager.default.removeItem(at: fileURL)
+        for directory in [preferredScreenshotsDirectory, legacyScreenshotsDirectory] {
+            let fileURL = directory.appendingPathComponent(filename)
+            do {
+                try FileManager.default.removeItem(at: fileURL)
+            } catch CocoaError.fileNoSuchFile {
+                continue
+            } catch {
+                logger.error("Failed to delete current screenshot: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
     
     /// 清理所有截图（可用于重置或清理）
     func clearAllScreenshots() {
-        try? FileManager.default.removeItem(at: screenshotsDirectory)
+        for directory in [preferredScreenshotsDirectory, legacyScreenshotsDirectory] {
+            do {
+                try FileManager.default.removeItem(at: directory)
+            } catch CocoaError.fileNoSuchFile {
+                continue
+            } catch {
+                logger.error("Failed to clear screenshots directory: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
     
     /// 获取截图文件大小（字节）
     func getCurrentScreenshotSize() -> Int64? {
-        let filename = "current_screenshot.jpg"
-        let fileURL = screenshotsDirectory.appendingPathComponent(filename)
+        let fileURL = currentScreenshotFileURL
         
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path) else {
             return nil

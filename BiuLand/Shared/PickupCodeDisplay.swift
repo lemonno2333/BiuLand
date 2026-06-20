@@ -50,6 +50,7 @@ struct PickupCodeIconView: View {
     let systemColor: Color
     let frameWidth: CGFloat?
     let brandShadowColor: Color?
+    let brandOutlineColor: Color?
 
     init(
         icon: String,
@@ -57,7 +58,8 @@ struct PickupCodeIconView: View {
         size: CGFloat,
         systemColor: Color,
         frameWidth: CGFloat? = nil,
-        brandShadowColor: Color? = nil
+        brandShadowColor: Color? = nil,
+        brandOutlineColor: Color? = nil
     ) {
         self.icon = icon
         self.brandIconName = brandIconName
@@ -65,17 +67,13 @@ struct PickupCodeIconView: View {
         self.systemColor = systemColor
         self.frameWidth = frameWidth
         self.brandShadowColor = brandShadowColor
+        self.brandOutlineColor = brandOutlineColor
     }
 
     var body: some View {
         Group {
             if let brandIconName {
-                Image(brandIconName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size, height: size)
-                    .clipShape(Circle())
-                    .shadow(color: brandShadowColor ?? .clear, radius: brandShadowColor == nil ? 0 : 4, y: brandShadowColor == nil ? 0 : 2)
+                outlinedBrandIcon(brandIconName)
             } else {
                 Image(systemName: icon)
                     .font(.system(size: size, weight: .semibold))
@@ -85,6 +83,56 @@ struct PickupCodeIconView: View {
             }
         }
         .frame(width: frameWidth, alignment: .center)
+    }
+
+    @ViewBuilder
+    private func outlinedBrandIcon(_ brandIconName: String) -> some View {
+        let image = Image(brandIconName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+
+        image
+            .background {
+                if let brandOutlineColor {
+                    BrandIconOutline(
+                        brandIconName: brandIconName,
+                        size: size,
+                        color: brandOutlineColor
+                    )
+                }
+            }
+            .clipShape(Circle())
+            .shadow(color: brandShadowColor ?? .clear, radius: brandShadowColor == nil ? 0 : 4, y: brandShadowColor == nil ? 0 : 2)
+    }
+}
+
+private struct BrandIconOutline: View {
+    let brandIconName: String
+    let size: CGFloat
+    let color: Color
+
+    var body: some View {
+        ZStack {
+            outlineLayer(x: -1.5, y: 0)
+            outlineLayer(x: 1.5, y: 0)
+            outlineLayer(x: 0, y: -1.5)
+            outlineLayer(x: 0, y: 1.5)
+            outlineLayer(x: -1, y: -1)
+            outlineLayer(x: -1, y: 1)
+            outlineLayer(x: 1, y: -1)
+            outlineLayer(x: 1, y: 1)
+        }
+    }
+
+    private func outlineLayer(x: CGFloat, y: CGFloat) -> some View {
+        Image(brandIconName)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundStyle(color)
+            .offset(x: x, y: y)
     }
 }
 

@@ -4,10 +4,15 @@ import WidgetKit
 import SwiftUI
 
 struct LiveActivityLiveActivity: Widget {
+    private let lightBrandOutline = Color.white.opacity(0.9)
+    private let darkBrandOutline = Color.black.opacity(0.72)
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PickupCodeActivityAttributes.self) { context in
             activityContent(for: PickupCodeDisplayModel(activityState: context.state))
                 .padding(16)
+                .activityBackgroundTint(.black)
+                .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             let display = PickupCodeDisplayModel(activityState: context.state)
             return DynamicIsland {
@@ -50,7 +55,7 @@ struct LiveActivityLiveActivity: Widget {
                     .frame(maxHeight: .infinity, alignment: .center)
 
                 VStack(alignment: .leading, spacing: 10) {
-                    codeBlock(for: display, codeSize: 36)
+                    lockScreenCodeBlock(for: display, codeSize: 36)
 
                     HStack {
                         Spacer()
@@ -62,7 +67,7 @@ struct LiveActivityLiveActivity: Widget {
             ZStack(alignment: .bottomTrailing) {
                 HStack(spacing: 16) {
                     activityIcon(display, size: 66)
-                    codeBlock(for: display, codeSize: 38)
+                    lockScreenCodeBlock(for: display, codeSize: 38)
                     Spacer(minLength: 0)
                 }
 
@@ -78,7 +83,8 @@ struct LiveActivityLiveActivity: Widget {
             brandIconName: display.brandIconName,
             size: size,
             systemColor: .white,
-            frameWidth: display.brandIconName == nil ? 76 : 84
+            frameWidth: display.brandIconName == nil ? 76 : 84,
+            brandOutlineColor: brandOutlineColor(forDarkBackground: true)
         )
     }
 
@@ -88,13 +94,24 @@ struct LiveActivityLiveActivity: Widget {
             icon: display.icon,
             brandIconName: display.brandIconName,
             size: size,
-            systemColor: .primary
+            systemColor: .primary,
+            brandOutlineColor: brandOutlineColor(forDarkBackground: true)
         )
     }
 
+    private func brandOutlineColor(forDarkBackground isDarkBackground: Bool) -> Color {
+        isDarkBackground ? lightBrandOutline : darkBrandOutline
+    }
+
     @ViewBuilder
-    private func codeBlock(for display: PickupCodeDisplayModel, codeSize: CGFloat) -> some View {
-        PickupCodeTextBlock(model: display, codeSize: codeSize)
+    private func lockScreenCodeBlock(for display: PickupCodeDisplayModel, codeSize: CGFloat) -> some View {
+        PickupCodeTextBlock(
+            model: display,
+            codeSize: codeSize,
+            titleColor: .white.opacity(0.72),
+            codeColor: .white,
+            contextColor: .white.opacity(0.72)
+        )
     }
 
     @ViewBuilder
